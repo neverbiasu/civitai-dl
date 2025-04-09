@@ -283,6 +283,8 @@ if __name__ == "__main__":
 # core/api.py
 import requests
 import os
+import time
+from threading import Lock
 
 class CivitaiAPI:
     def __init__(self):
@@ -291,201 +293,250 @@ class CivitaiAPI:
         self.headers = {}
         if self.api_key:
             self.headers["Authorization"] = f"Bearer {self.api_key}"
+        # 请求频率控制
+        self.last_request_time = 0
+        self.min_request_interval = 0.5  # 最小请求间隔(秒)
+        self.request_lock = Lock()
     
-    def get_models(self, params=None):
-        """获取模型列表"""
-        url = f"{self.base_url}/models"
-        response = requests.get(url, headers=self.headers, params=params)
+    def _rate_limited_request(self, method, url, **kwargs):
+        """实现请求频率控制的请求方法"""
+        with self.request_lock:
+            # 计算需要等待的时间
+            current_time = time.time()
+            elapsed = current_time - self.last_request_time
+            if elapsed < self.min_request_interval:
+                wait_time = self.min_request_interval - elapsed
+                time.sleep(wait_time)
+            
+            # 执行请求并记录时间
+            response = requests.request(method, url, **kwargs)
+            self.last_request_time = time.time()
+            
+            # 根据响应状态码调整请求间隔
+            if response.status_code == 429:  # Too Many Requests
+                self.min_request_interval *= 2  # 指数退避游标分页"""
+                time.sleep(5)  # 额外等待
+                return self._rate_limited_request(method, url, **kwargs)  # 重试
+                
+            return response
+     
+    def get_models(self, params=None):    def get_all_images(self, base_params=None):
+        """获取模型列表"""像，自动处理游标分页"""
+        url = f"{self.base_url}/models"        if base_params is None:
+        response = self._rate_limited_request("GET", url, headers=self.headers, params=params)   base_params = {}
         response.raise_for_status()
-        return response.json()
-    
+        return response.json()esults = []
+    = base_params.copy()
     def get_model(self, model_id):
         """获取单个模型详情"""
-        url = f"{self.base_url}/models/{model_id}"
-        response = requests.get(url, headers=self.headers)
-        response.raise_for_status()
+        url = f"{self.base_url}/models/{model_id}" response = self.get_images(params)
+        response = self._rate_limited_request("GET", url, headers=self.headers)            if "items" in response:
+        response.raise_for_status()ults.extend(response["items"])
         return response.json()
-    
-    def get_model_version(self, version_id):
+    游标
+    def get_model_version(self, version_id):and "nextCursor" in response["metadata"]:
         """获取模型版本详情"""
         url = f"{self.base_url}/model-versions/{version_id}"
-        response = requests.get(url, headers=self.headers)
-        response.raise_for_status()
+        response = self._rate_limited_request("GET", url, headers=self.headers)
+        response.raise_for_status()循环
         return response.json()
     
-    def get_images(self, params=None):
+    def get_images(self, params=None):    return results
         """获取图像列表"""
         url = f"{self.base_url}/images"
-        response = requests.get(url, headers=self.headers, params=params)
+        response = self._rate_limited_request("GET", url, headers=self.headers, params=params)### ModelDownloader 类
         response.raise_for_status()
         return response.json()
 ```
 
 ### ModelDownloader 类
-
-```python
+ import ThreadPoolExecutor
+```pythonlib.parse import urlparse, unquote
 # core/downloader.py
 import os
-import requests
+import requestss DownloadTask:
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse, unquote
-import time
+import timeut_path
 
-class DownloadTask:
+class DownloadTask:.status = "pending"  # pending, downloading, completed, failed
     def __init__(self, url, output_path, filename=None):
         self.url = url
-        self.output_path = output_path
+        self.output_path = output_pathtime = None
         self.filename = filename
         self.status = "pending"  # pending, downloading, completed, failed
-        self.progress = 0
+        self.progress = 0rogress(self, progress):
         self.error = None
         self.start_time = None
         self.end_time = None
-    
-    def update_progress(self, progress):
+    __init__(self, output_path="./downloads", max_workers=3):
+    def update_progress(self, progress):put_path = output_path
         self.progress = progress
-
-class ModelDownloader:
+= ThreadPoolExecutor(max_workers=max_workers)
+class ModelDownloader:    self.tasks = {}
     def __init__(self, output_path="./downloads", max_workers=3):
-        self.output_path = output_path
-        self.max_workers = max_workers
+        self.output_path = output_pathtput_path):
+        self.max_workers = max_workers)
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
-        self.tasks = {}
-        
-        if not os.path.exists(output_path):
-            os.makedirs(output_path)
+        self.tasks = {}download_model_version(self, version_id, output_path=None):
+        """
+        if not os.path.exists(output_path):e:
+            os.makedirs(output_path)    output_path = self.output_path
     
-    def download_model_version(self, version_id, output_path=None):
+    def download_model_version(self, version_id, output_path=None):ps://civitai.com/api/download/models/{version_id}"
         """下载特定版本的模型"""
         if output_path is None:
-            output_path = self.output_path
+            output_path = self.output_pathdownload_url += f"?token={api_key}"
             
         download_url = f"https://civitai.com/api/download/models/{version_id}"
         api_key = os.environ.get("CIVITAI_API_KEY")
-        if api_key:
+        if api_key:))}"
             download_url += f"?token={api_key}"
             
         # 创建下载任务
-        task = DownloadTask(download_url, output_path)
+        task = DownloadTask(download_url, output_path)re = self.executor.submit(self._download_file, task)
         task_id = f"model_{version_id}_{int(time.time())}"
         self.tasks[task_id] = task
         
         # 提交下载任务
-        future = self.executor.submit(self._download_file, task)
-        return task_id
+        future = self.executor.submit(self._download_file, task).status = "downloading"
+        return task_id.time()
     
     def _download_file(self, task):
-        """执行文件下载，支持进度跟踪和断点续传"""
+        """执行文件下载，支持进度跟踪和断点续传"""l_filename = None
         task.status = "downloading"
         task.start_time = time.time()
         
-        headers = {}
-        local_filename = None
+        headers = {} = requests.head(task.url)
+        local_filename = Nones()
         
-        try:
-            # 发送HEAD请求获取文件信息
-            head_response = requests.head(task.url)
-            head_response.raise_for_status()
+        try:n获取文件名
+            # 发送HEAD请求获取文件信息s:
+            head_response = requests.head(task.url)    content_disposition = head_response.headers['Content-Disposition']
+            head_response.raise_for_status() 'filename=' in content_disposition:
             
-            # 从Content-Disposition获取文件名
-            if 'Content-Disposition' in head_response.headers:
+            # 从Content-Disposition获取文件名swith('"') and local_filename.endswith('"'):
+            if 'Content-Disposition' in head_response.headers:        local_filename = local_filename[1:-1]
                 content_disposition = head_response.headers['Content-Disposition']
                 if 'filename=' in content_disposition:
                     local_filename = content_disposition.split('filename=')[1]
-                    if local_filename.startswith('"') and local_filename.endswith('"'):
-                        local_filename = local_filename[1:-1]
+                    if local_filename.startswith('"') and local_filename.endswith('"'):local_filename = os.path.basename(urlparse(task.url).path)
+                        local_filename = local_filename[1:-1]e)
             
             # 如果获取不到文件名，从URL中提取
             if not local_filename:
-                local_filename = os.path.basename(urlparse(task.url).path)
+                local_filename = os.path.basename(urlparse(task.url).path)task.filename
                 local_filename = unquote(local_filename)
-            
+            h, local_filename)
             # 如果传入了指定文件名，使用指定的
             if task.filename:
-                local_filename = task.filename
-            
-            file_path = os.path.join(task.output_path, local_filename)
-            
-            # 检查文件是否已经存在，支持断点续传
+                local_filename = task.filenamefile_size = 0
+            th):
+            file_path = os.path.join(task.output_path, local_filename)    file_size = os.path.getsize(file_path)
+             0:
+            # 检查文件是否已经存在，支持断点续传'] = f'bytes={file_size}-'
             file_size = 0
             if os.path.exists(file_path):
-                file_size = os.path.getsize(file_path)
-                if file_size > 0:
+                file_size = os.path.getsize(file_path)with requests.get(task.url, headers=headers, stream=True) as response:
+                if file_size > 0:response.raise_for_status()
                     headers['Range'] = f'bytes={file_size}-'
-            
-            # 执行下载
-            with requests.get(task.url, headers=headers, stream=True) as response:
+                total_size = int(response.headers.get('content-length', 0))
+            # 执行下载e' in headers and response.status_code == 206:
+            with requests.get(task.url, headers=headers, stream=True) as response:                    total_size += file_size
                 response.raise_for_status()
                 
-                total_size = int(response.headers.get('content-length', 0))
+                total_size = int(response.headers.get('content-length', 0))ode) as f:
                 if 'Range' in headers and response.status_code == 206:
-                    total_size += file_size
+                    total_size += file_size            for chunk in response.iter_content(chunk_size=8192):
                 
-                mode = 'ab' if file_size > 0 else 'wb'
-                with open(file_path, mode) as f:
-                    downloaded = file_size
-                    for chunk in response.iter_content(chunk_size=8192):
+                mode = 'ab' if file_size > 0 else 'wb'chunk)
+                with open(file_path, mode) as f:                        downloaded += len(chunk)
+                    downloaded = file_sizeotal_size > 0 else 0
+                    for chunk in response.iter_content(chunk_size=8192):        task.update_progress(progress)
                         if chunk:
                             f.write(chunk)
                             downloaded += len(chunk)
-                            progress = downloaded / total_size if total_size > 0 else 0
+                            progress = downloaded / total_size if total_size > 0 else 0tion as e:
                             task.update_progress(progress)
-            
+             str(e)
             task.status = "completed"
-            
+                
         except Exception as e:
-            task.status = "failed"
+            task.status = "failed"    task.end_time = time.time()
             task.error = str(e)
             raise e
             
-        finally:
-            task.end_time = time.time()
-            
-        return file_path
+        finally:s ImageDownloader:
+            task.end_time = time.time() max_workers=5):
+            path = output_path
+        return file_path.executor = ThreadPoolExecutor(max_workers=max_workers)
 
 class ImageDownloader:
     def __init__(self, output_path="./images", max_workers=5):
         self.output_path = output_path
-        self.executor = ThreadPoolExecutor(max_workers=max_workers)
+        self.executor = ThreadPoolExecutor(max_workers=max_workers) output_path=None, image_id=None):
         
-        if not os.path.exists(output_path):
-            os.makedirs(output_path)
+        if not os.path.exists(output_path):ne:
+            os.makedirs(output_path).output_path
     
-    def download_image(self, url, output_path=None, image_id=None):
-        """下载单张图像"""
-        if output_path is None:
-            output_path = self.output_path
-            
-        # 从URL中提取文件名
+    def download_image(self, url, output_path=None, image_id=None):名
+        """下载单张图像"""     filename = os.path.basename(urlparse(url).path)
+        if output_path is None:        if not filename:
+            output_path = self.output_path  filename = f"image_{image_id if image_id else int(time.time())}.jpg"
+                    
+        # 从URL中提取文件名path = os.path.join(output_path, filename)
         filename = os.path.basename(urlparse(url).path)
         if not filename:
-            filename = f"image_{image_id if image_id else int(time.time())}.jpg"
-        
+            filename = f"image_{image_id if image_id else int(time.time())}.jpg"t(self._download_image, url, file_path)
+                return future
         file_path = os.path.join(output_path, filename)
-        
+         file_path):
         # 提交下载任务
-        future = self.executor.submit(self._download_image, url, file_path)
-        return future
-    
-    def _download_image(self, url, file_path):
-        """执行图像下载"""
-        try:
-            with requests.get(url, stream=True) as response:
-                response.raise_for_status()
-                with open(file_path, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if chunk:
-                            f.write(chunk)
+        future = self.executor.submit(self._download_image, url, file_path)        try:
+        return future with requests.get(url, stream=True) as response:
+    e.raise_for_status()
+    def _download_image(self, url, file_path):open(file_path, 'wb') as f:
+        """执行图像下载"""       for chunk in response.iter_content(chunk_size=8192):
+        try:f chunk:
+            with requests.get(url, stream=True) as response:                            f.write(chunk)
+                response.raise_for_status() return file_path
+                with open(file_path, 'wb') as f:on as e:
+                    for chunk in response.iter_content(chunk_size=8192):ownloading {url}: {str(e)}")
+                        if chunk:e e
+                            f.write(chunk)```
             return file_path
         except Exception as e:
             print(f"Error downloading {url}: {str(e)}")
-            raise e
-```
+            raise e1. **简化设计原则**
 
-## 注意事项和限制
 
-1. **简化设计原则**
-   - 专注核心下载功能，不实现本地资源管理
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   - 核心类设计允许在不修改基础代码的情况下扩展功能   - 代码结构支持未来添加更多功能5. **可扩展性**   - 界面专注于功能而非美观   - WebUI使用Gradio提供简单直观的界面   - CLI使用Click提供命令行界面4. **用户界面**   - 本地数据保存仅使用简单文件结构，无数据库   - 没有实现插件系统   - 没有实现API限制处理和优化策略   - 没有实现复杂的配置管理，使用默认设置3. **当前限制**   - 某些模型可能需要API Key才能下载   - 通过环境变量CIVITAI_API_KEY传递，避免硬编码2. **API Key处理**   - 最小化依赖项，仅使用Click、Gradio和Requests   - 使用简单的文件结构保存下载内容   - 专注核心下载功能，不实现本地资源管理1. **简化设计原则**## 注意事项和限制```   - 专注核心下载功能，不实现本地资源管理
    - 使用简单的文件结构保存下载内容
    - 最小化依赖项，仅使用Click、Gradio和Requests
 
