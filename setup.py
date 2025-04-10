@@ -22,7 +22,7 @@ setup(
     description="A tool for browsing and downloading resources from Civitai",
     keywords="civitai, ai, download, stable-diffusion",
     project_urls={
-        "Documentation": "https://github.com/username/civitai-downloader",
-        "Source": "https://github.com/username/civitai-downloader",
+        "Documentation": "https://github.com/neverbiasu/civitai-downloader",
+        "Source": "https://github.com/neverbiasu/civitai-downloader",
     },
 )

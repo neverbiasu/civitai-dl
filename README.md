@@ -1,4 +1,4 @@
-# Civitai Downloader
+# Civitai-DL
 
 一款专为AI艺术创作者设计的工具，用于高效浏览、下载和管理Civitai平台上的模型资源。
 
@@ -14,15 +14,15 @@
 ### 使用pip安装
 
 ```bash
-pip install civitai-downloader
+pip install civitai-dl
 ```
 
 ### 从源码安装
 
 ```bash
 # 克隆仓库
-git clone https://github.com/username/civitai-downloader.git
-cd civitai-downloader
+git clone https://github.com/neverbiasu/civitai-dl.git
+cd civitai-dl
 
 # 使用Poetry安装
 poetry install
@@ -48,7 +48,7 @@ civitai-dl webui
 
 ## 文档
 
-详细文档请访问[项目文档网站](https://github.com/username/civitai-downloader)。
+详细文档请访问[项目文档网站](https://github.com/neverbiasu/civitai-dl)。
 
 ## 贡献
 

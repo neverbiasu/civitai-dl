@@ -1,11 +1,11 @@
 [tool.poetry]
-name = "civitai-downloader"
+name = "civitai-dl"
 version = "0.1.0"
 description = "A tool for browsing and downloading resources from Civitai"
 authors = ["Civitai Downloader Team"]
 readme = "README.md"
-repository = "https://github.com/username/civitai-downloader"
-documentation = "https://github.com/username/civitai-downloader"
+repository = "https://github.com/neverbiasu/civitai-dl"
+documentation = "https://github.com/neverbiasu/civitai-dl"
 keywords = ["civitai", "ai", "download", "stable-diffusion"]
 classifiers = [
     "Development Status :: 3 - Alpha",
