@@ -5,7 +5,7 @@ import time
 import uuid
 import requests
 import threading
-from typing import Dict, List, Optional, Callable, Any
+from typing import Dict, List, Optional, Callable
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse, unquote
 
@@ -104,8 +104,8 @@ class DownloadEngine:
         self._lock = threading.Lock()  # 线程锁，保护共享资源
     
     def download(self, url: str, output_path: str, filename: Optional[str] = None,
-                headers: Optional[Dict[str, str]] = None, 
-                priority: int = 0) -> DownloadTask:
+                 headers: Optional[Dict[str, str]] = None, 
+                 priority: int = 0) -> DownloadTask:
         """
         创建并提交一个下载任务
         

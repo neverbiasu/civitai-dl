@@ -5,7 +5,6 @@ import time
 import requests
 from threading import Lock
 import logging
-import certifi
 import urllib3
 from typing import Dict, Any, Optional, List
 
@@ -178,7 +177,7 @@ class CivitaiAPI:
         try:
             response.raise_for_status()
             return response.json()
-        except requests.HTTPError as e:
+        except requests.HTTPError:  # 移除未使用的 'e' 变量
             if response.status_code == 404:
                 raise ResourceNotFoundError(f"Resource not found: {response.url}")
             elif response.status_code == 401:
@@ -191,7 +190,7 @@ class CivitaiAPI:
                     error_data = response.json()
                     if "message" in error_data:
                         error_msg += f": {error_data['message']}"
-                except:
+                except ValueError:
                     error_msg += f": {response.text}"
                 raise APIError(error_msg)
         except ValueError:

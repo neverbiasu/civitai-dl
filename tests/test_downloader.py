@@ -147,7 +147,7 @@ class TestDownloadEngine:
         # 手动触发错误情况
         try:
             download_engine._download_file(task)
-        except:
+        except Exception:  # 改为具体异常或加上明确的注释
             pass  # 捕获预期异常
             
         # 验证错误状态
