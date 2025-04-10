@@ -2,10 +2,14 @@
 
 import os
 import time
-import logging
 import requests
 from threading import Lock
+import logging
+import certifi
+import urllib3
 from typing import Dict, Any, Optional, List
+
+from ..config.proxy_settings import get_proxy_settings, get_verify_ssl
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +45,8 @@ class CivitaiAPI:
         self,
         api_key: Optional[str] = None,
         base_url: str = "https://civitai.com/api/v1/",
+        proxy: Optional[Dict[str, str]] = None,
+        verify_ssl: Optional[bool] = None,
     ):
         """
         Initialize API client.
@@ -48,12 +54,38 @@ class CivitaiAPI:
         Args:
             api_key: Civitai API key
             base_url: API base URL
+            proxy: Proxy settings, format {'http': 'http://proxy:port', 'https': 'https://proxy:port'}
+                   Set to None to use system proxy, set to {} to disable all proxies
+            verify_ssl: Whether to verify SSL certificates
         """
         self.api_key = api_key or os.environ.get("CIVITAI_API_KEY")
         self.base_url = base_url
         self.headers = {}
         if self.api_key:
             self.headers["Authorization"] = f"Bearer {self.api_key}"
+
+        # Create session object for connection reuse
+        self.session = requests.Session()
+
+        # Set proxy
+        if proxy is None:
+            # Use default proxy settings
+            proxy = get_proxy_settings()
+
+        self.proxy = proxy
+        if proxy:
+            self.session.proxies = proxy
+            logger.info(f"Using proxy settings: {proxy}")
+
+        # Set SSL verification
+        if verify_ssl is None:
+            verify_ssl = get_verify_ssl()
+
+        if not verify_ssl:
+            # Disable SSL verification (not recommended, but may be needed in some environments)
+            self.session.verify = False
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            logger.warning("Warning: SSL verification is disabled, this may pose security risks")
 
         # Rate limiting controls
         self.min_request_interval = 0.5  # seconds
@@ -88,19 +120,44 @@ class CivitaiAPI:
 
             # Execute request and update timestamp
             try:
-                response = requests.request(method, url, **kwargs)
+                response = self.session.request(method, url, **kwargs)
                 self.last_request_time = time.time()
-            except requests.RequestException as e:
+                
+                # Adjust request interval based on response status code
+                if response.status_code == 429:  # Too Many Requests
+                    logger.warning("Rate limit hit, increasing delay and retrying")
+                    self.min_request_interval *= 2  # Exponential backoff
+                    time.sleep(5)  # Additional wait
+                    return self._rate_limited_request(method, url, **kwargs)  # Retry
+
+                return response
+            except requests.exceptions.SSLError as e:
+                logger.error(f"SSL certificate verification error: {e}")
+                error_msg = f"SSL certificate verification failed: {str(e)}\n"
+                error_msg += "Possible solutions:\n"
+                error_msg += "1. Check your proxy settings\n"
+                error_msg += "2. Update your CA certificates: pip install --upgrade certifi\n"
+                error_msg += "3. If you trust this connection, use verify_ssl=False (not recommended)\n"
+                error_msg += "4. Set a custom CA bundle: ca_bundle=path/to/cert.pem"
+                raise APIError(error_msg)
+            except requests.exceptions.ProxyError as e:
+                logger.error(f"Proxy server error: {e}")
+                error_msg = f"Proxy server connection failed: {str(e)}\n"
+                error_msg += "Possible solutions:\n"
+                error_msg += "1. Check if the proxy server is running\n"
+                error_msg += "2. Verify the proxy address and port\n"
+                error_msg += "3. Ensure the proxy server allows access to the target site\n"
+                error_msg += "4. Try using a different proxy server"
+                raise APIError(error_msg)
+            except requests.exceptions.ConnectionError as e:
+                logger.error(f"Connection error: {e}")
+                raise APIError(f"Unable to connect to API server: {str(e)}")
+            except requests.exceptions.Timeout as e:
+                logger.error(f"Request timeout: {e}")
+                raise APIError(f"Request timeout: {str(e)}")
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Request exception: {e}")
                 raise APIError(f"Request failed: {str(e)}")
-
-            # Handle rate limiting response
-            if response.status_code == 429:
-                logger.warning("Rate limit hit, increasing delay and retrying")
-                self.min_request_interval *= 2
-                time.sleep(5)
-                return self._rate_limited_request(method, url, **kwargs)
-
-            return response
 
     def _process_response(self, response: requests.Response) -> Dict[str, Any]:
         """
@@ -129,7 +186,14 @@ class CivitaiAPI:
             elif response.status_code == 429:
                 raise RateLimitError("API rate limit exceeded")
             else:
-                raise APIError(f"API error: {str(e)}")
+                error_msg = f"HTTP error {response.status_code}"
+                try:
+                    error_data = response.json()
+                    if "message" in error_data:
+                        error_msg += f": {error_data['message']}"
+                except:
+                    error_msg += f": {response.text}"
+                raise APIError(error_msg)
         except ValueError:
             raise APIError("Invalid JSON response")
 
