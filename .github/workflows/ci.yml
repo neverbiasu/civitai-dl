@@ -29,10 +29,10 @@ jobs:
 
       - name: Lint with flake8
         run: |
-          flake8 civitai_downloader tests
+          flake8 civitai_dl tests
 
       - name: Test with pytest
         run: |
-          pytest tests/ --cov=civitai_downloader
+          pytest tests/ --cov=civitai_dl
         env:
           CIVITAI_API_KEY: ${{ secrets.CIVITAI_API_KEY }}
