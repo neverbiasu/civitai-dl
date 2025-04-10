@@ -8,8 +8,7 @@ Civitai Downloader 采用模块化架构，分为核心下载引擎、API客户�
 civitai-downloader/
 ├── core/          # 核心功能模块
 │   ├── api/       # Civitai API 客户端
-│   ├── downloader/# 下载引擎
-│   └── db/        # 本地数据存储
+│   └── downloader/# 下载引擎
 ├── cli/           # 命令行界面
 ├── webui/         # Web用户界面
 └── utils/         # 通用工具函数
@@ -22,7 +21,6 @@ civitai-downloader/
 - 网络请求: `requests`
 - CLI框架: `click`
 - API框架: `FastAPI`
-- 本地数据库: `SQLite`
 - 并发处理: `asyncio`
 
 ### 前端
@@ -57,7 +55,6 @@ civitai-downloader/
 ### 开发工具推荐
 - 代码编辑器: VS Code with Python插件
 - API测试: Postman 或 curl
-- 数据库查看: DB Browser for SQLite
 
 ## Civitai API 集成
 
@@ -110,32 +107,6 @@ class CivitaiAPI:
 - 使用`aiohttp`或`asyncio`实现异步下载
 - 采用分块下载策略
 - 实现进度跟踪和状态报告
-
-## 数据存储设计
-
-使用SQLite存储:
-- 模型元数据
-- 下载历史和状态
-- 用户配置
-
-示例数据模型:
-```python
-# 使用SQLAlchemy ORM
-class Model(Base):
-    __tablename__ = "models"
-    
-    id = Column(Integer, primary_key=True)
-    civitai_id = Column(Integer, unique=True)
-    name = Column(String)
-    type = Column(String)
-    creator = Column(String)
-    version_id = Column(Integer)
-    download_url = Column(String)
-    download_path = Column(String)
-    status = Column(String)  # pending, downloading, completed, failed
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, onupdate=datetime.utcnow)
-```
 
 ## CLI 开发指南
 
@@ -192,7 +163,6 @@ def download(model_id, output):
 
 ### 集成测试
 - 测试组件间协作
-- 使用测试数据库
 - 验证完整功能流程
 
 ### 自动化测试
