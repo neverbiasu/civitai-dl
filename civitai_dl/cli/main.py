@@ -17,6 +17,7 @@ def cli():
     """Civitai Downloader - 下载和管理Civitai资源"""
     pass
 
+
 # 注册命令组
 cli.add_command(download)
 # 注册其他命令组...

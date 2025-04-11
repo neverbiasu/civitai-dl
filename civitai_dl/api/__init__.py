@@ -1,5 +1,5 @@
-"""API client module for Civitai."""
+"""API client package for Civitai"""
 
-from .client import CivitaiAPI
+from civitai_dl.api.client import CivitaiAPI, APIError
 
-__all__ = ["CivitaiAPI"]
+__all__ = ["CivitaiAPI", "APIError"]
