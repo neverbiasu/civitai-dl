@@ -11,7 +11,7 @@ Pytest配置和全局fixtures
 def setup_environment():
     """设置测试环境变量和全局配置"""
     # 如果存在测试API密钥，从环境变量中获取
-    # api_key = os.environ.get("CIVITAI_API_KEY", "")  # 可以使用 _ 前缀或完全删除
+    os.environ.get("CIVITAI_API_KEY")
 
     # 配置测试时使用的基本参数
     os.environ["CIVITAI_TEST_MODE"] = "1"
@@ -73,21 +73,58 @@ def mock_api_response():
 
 @pytest.fixture(autouse=True)
 def disable_proxy_for_tests():
-    """在测试中禁用代理设置"""
+    """在测试中禁用代理设置，在CI环境中禁用代理"""
     # 保存原始环境变量
     original_proxy = os.environ.get("HTTP_PROXY")
     original_https_proxy = os.environ.get("HTTPS_PROXY")
+    original_no_proxy = os.environ.get("NO_PROXY")
 
     # 在CI环境中禁用代理
     if "CI" in os.environ or "CI_TESTING" in os.environ:
-        os.environ["NO_PROXY"] = "*"
         os.environ.pop("HTTP_PROXY", None)
         os.environ.pop("HTTPS_PROXY", None)
+        os.environ["NO_PROXY"] = "*"
+    else:
+        # 确保使用系统或用户配置的代理
+        civitai_proxy = os.environ.get("CIVITAI_PROXY")
+        if civitai_proxy:
+            os.environ["HTTP_PROXY"] = civitai_proxy
+            os.environ["HTTPS_PROXY"] = civitai_proxy
+            print(f"CIVITAI_PROXY环境变量设置代理: {civitai_proxy}")
+        elif original_proxy or original_https_proxy:
+            print(
+                f"使用系统代理 HTTP_PROXY={original_proxy}, HTTPS_PROXY={original_https_proxy}"
+            )
 
     yield
 
     # 恢复环境
     if original_proxy:
         os.environ["HTTP_PROXY"] = original_proxy
+    else:
+        os.environ.pop("HTTP_PROXY", None)
+
     if original_https_proxy:
         os.environ["HTTPS_PROXY"] = original_https_proxy
+    else:
+        os.environ.pop("HTTPS_PROXY", None)
+
+    if original_no_proxy:
+        os.environ["NO_PROXY"] = original_no_proxy
+    else:
+        os.environ.pop("NO_PROXY", None)
+
+
+@pytest.fixture
+def api_client():
+    """提供API客户端实例"""
+    from civitai_dl.api.client import CivitaiAPI
+
+    # 使用环境变量中的代理设置（如果有）
+    proxy = os.environ.get("CIVITAI_PROXY")
+
+    return CivitaiAPI(
+        api_key=os.environ.get("CIVITAI_API_KEY"),
+        proxy=proxy,
+        verify=False,  # 测试时禁用SSL验证
+    )
