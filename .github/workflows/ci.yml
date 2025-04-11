@@ -36,3 +36,6 @@ jobs:
           pytest tests/ --cov=civitai_dl
         env:
           CIVITAI_API_KEY: ${{ secrets.CIVITAI_API_KEY }}
+          CI_TESTING: "true"
+          NO_PROXY: "true"
+          DISABLE_PROXY: "true"

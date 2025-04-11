@@ -9,6 +9,11 @@ from typing import Dict
 DEFAULT_PROXY = "http://127.0.0.1:7890"
 DEFAULT_NO_PROXY = "localhost,127.0.0.1"
 
+# CI环境检测
+def is_ci_environment() -> bool:
+    """检测当前是否在CI环境中运行"""
+    return os.environ.get("CI") == "true" or os.environ.get("CI_TESTING") == "true"
+
 
 def get_proxy_settings() -> Dict[str, str]:
     """
@@ -18,6 +23,10 @@ def get_proxy_settings() -> Dict[str, str]:
         包含代理设置的字典，格式为 {'http': '...', 'https': '...'}
     """
     proxy_settings = {}
+
+    # 在CI环境中禁用代理
+    if is_ci_environment() or os.environ.get("NO_PROXY") == "true" or os.environ.get("DISABLE_PROXY") == "true":
+        return {}
 
     # 首先尝试从环境变量获取
     http_proxy = os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy")

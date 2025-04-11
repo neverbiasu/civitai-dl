@@ -69,3 +69,24 @@ def mock_api_response():
             }
         ],
     }
+
+@pytest.fixture(autouse=True)
+def disable_proxy_for_tests():
+    """在测试中禁用代理设置"""
+    # 保存原始环境变量
+    original_proxy = os.environ.get("HTTP_PROXY")
+    original_https_proxy = os.environ.get("HTTPS_PROXY")
+    
+    # 在CI环境中禁用代理
+    if "CI" in os.environ or "CI_TESTING" in os.environ:
+        os.environ["NO_PROXY"] = "*"
+        os.environ.pop("HTTP_PROXY", None)
+        os.environ.pop("HTTPS_PROXY", None)
+    
+    yield
+    
+    # 恢复环境
+    if original_proxy:
+        os.environ["HTTP_PROXY"] = original_proxy
+    if original_https_proxy:
+        os.environ["HTTPS_PROXY"] = original_https_proxy
