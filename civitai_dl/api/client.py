@@ -16,7 +16,72 @@ logger = logging.getLogger(__name__)
 class APIError(Exception):
     """Base exception for API errors."""
 
-    pass
+    def __init__(self, message, response=None, url=None):
+        self.message = message
+        self.response = response
+        self.url = url
+        self.status_code = response.status_code if response else None
+        
+        # 添加可能的解决方案
+        self.solutions = self._get_solutions()
+        
+        # 构建包含解决方案的完整错误消息
+        full_message = message
+        if self.solutions:
+            full_message += "\nPossible solutions:\n" + "\n".join([f"{i+1}. {s}" for i, s in enumerate(self.solutions)])
+        
+        super().__init__(full_message)
+    
+    def _get_solutions(self):
+        """根据错误类型提供可能的解决方案"""
+        solutions = []
+        
+        if 'Proxy' in self.message or 'proxy' in self.message:
+            solutions.extend([
+                "Check if the proxy server is running",
+                "Verify the proxy address and port",
+                "Ensure the proxy server allows access to the target site",
+                "Try using a different proxy server",
+                "Use --no-proxy option to disable proxy"
+            ])
+        elif 'timeout' in self.message.lower():
+            solutions.extend([
+                "Check your internet connection",
+                "Try again later, the server might be busy",
+                "Increase the timeout value using --timeout option"
+            ])
+        elif self.status_code == 401:
+            solutions.extend([
+                "Check your API key",
+                "Ensure your API key has the necessary permissions"
+            ])
+        elif self.status_code == 403:
+            solutions.extend([
+                "You don't have permission to access this resource",
+                "Check if you need to authenticate",
+                "Ensure your API key is correct"
+            ])
+        elif self.status_code == 404:
+            solutions.extend([
+                "The requested resource does not exist",
+                "Check the ID or endpoint URL"
+            ])
+        elif self.status_code and self.status_code >= 500:
+            solutions.extend([
+                "The server encountered an error",
+                "Try again later",
+                "Check Civitai status page for any outages"
+            ])
+        
+        # 添加通用解决方案
+        if not solutions:
+            solutions.extend([
+                "Check your internet connection",
+                "Verify the API endpoint is correct",
+                "Ensure you're using the latest version of the client"
+            ])
+        
+        return solutions
 
 
 class ResourceNotFoundError(APIError):
@@ -46,6 +111,9 @@ class CivitaiAPI:
         base_url: str = "https://civitai.com/api/v1/",
         proxy: Optional[Dict[str, str]] = None,
         verify_ssl: Optional[bool] = None,
+        timeout: int = 30,
+        max_retries: int = 3,
+        retry_delay: int = 2,
     ):
         """
         Initialize API client.
@@ -56,6 +124,9 @@ class CivitaiAPI:
             proxy: Proxy settings, format {'http': 'http://proxy:port', 'https': 'https://proxy:port'}
                    Set to None to use system proxy, set to {} to disable all proxies
             verify_ssl: Whether to verify SSL certificates
+            timeout: Request timeout in seconds
+            max_retries: Maximum number of retries
+            retry_delay: Delay between retries in seconds
         """
         self.api_key = api_key or os.environ.get("CIVITAI_API_KEY")
         self.base_url = base_url
@@ -65,6 +136,9 @@ class CivitaiAPI:
 
         # Create session object for connection reuse
         self.session = requests.Session()
+        self.timeout = timeout
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
 
         # Set proxy
         if proxy is None:

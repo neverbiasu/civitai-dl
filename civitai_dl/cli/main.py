@@ -5,6 +5,8 @@ import sys
 from typing import Optional
 
 from civitai_dl import __version__
+from civitai_dl.cli.commands.download import download
+# 导入其他命令组...
 
 
 @click.group()
@@ -14,6 +16,10 @@ from civitai_dl import __version__
 def cli():
     """Civitai Downloader - 下载和管理Civitai资源"""
     pass
+
+# 注册命令组
+cli.add_command(download)
+# 注册其他命令组...
 
 
 @cli.command()
