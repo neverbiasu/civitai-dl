@@ -1,16 +1,6 @@
 [flake8]
-# 允许的最大行长度
-max-line-length = 100
-# 忽略某些不重要的错误
-ignore = 
-    # 忽略空白行包含空格的警告
-    W293,
-    # 忽略行尾空格警告 
-    W291,
-    # 忽略期望的空行数量问题
-    E302, E306
-# 排除特定文件或目录
-exclude =
+max-line-length = 120
+exclude = 
     .git,
     __pycache__,
     build,
