@@ -84,7 +84,9 @@ class CivitaiAPI:
             # Disable SSL verification (not recommended, but may be needed in some environments)
             self.session.verify = False
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-            logger.warning("Warning: SSL verification is disabled, this may pose security risks")
+            logger.warning(
+                "Warning: SSL verification is disabled, this may pose security risks"
+            )
 
         # Rate limiting controls
         self.min_request_interval = 0.5  # seconds
@@ -121,7 +123,7 @@ class CivitaiAPI:
             try:
                 response = self.session.request(method, url, **kwargs)
                 self.last_request_time = time.time()
-                
+
                 # Adjust request interval based on response status code
                 if response.status_code == 429:  # Too Many Requests
                     logger.warning("Rate limit hit, increasing delay and retrying")
@@ -135,7 +137,9 @@ class CivitaiAPI:
                 error_msg = f"SSL certificate verification failed: {str(e)}\n"
                 error_msg += "Possible solutions:\n"
                 error_msg += "1. Check your proxy settings\n"
-                error_msg += "2. Update your CA certificates: pip install --upgrade certifi\n"
+                error_msg += (
+                    "2. Update your CA certificates: pip install --upgrade certifi\n"
+                )
                 error_msg += "3. If you trust this connection, use verify_ssl=False (not recommended)\n"
                 error_msg += "4. Set a custom CA bundle: ca_bundle=path/to/cert.pem"
                 raise APIError(error_msg)
@@ -145,7 +149,9 @@ class CivitaiAPI:
                 error_msg += "Possible solutions:\n"
                 error_msg += "1. Check if the proxy server is running\n"
                 error_msg += "2. Verify the proxy address and port\n"
-                error_msg += "3. Ensure the proxy server allows access to the target site\n"
+                error_msg += (
+                    "3. Ensure the proxy server allows access to the target site\n"
+                )
                 error_msg += "4. Try using a different proxy server"
                 raise APIError(error_msg)
             except requests.exceptions.ConnectionError as e:

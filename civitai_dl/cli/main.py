@@ -43,9 +43,7 @@ def download():
 @click.option("--output", "-o", help="输出路径")
 def download_model(model_id: int, version: Optional[int], output: Optional[str]):
     """下载指定ID的模型"""
-    click.echo(
-        f"下载模型 {model_id} {'(版本 ' + str(version) + ')' if version else ''}"
-    )
+    click.echo(f"下载模型 {model_id} {'(版本 ' + str(version) + ')' if version else ''}")
     # 这里将实现实际的下载逻辑
     click.echo("下载功能正在开发中...")
 

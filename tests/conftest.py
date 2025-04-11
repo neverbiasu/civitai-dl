@@ -6,11 +6,12 @@ import tempfile
 Pytest配置和全局fixtures
 """
 
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_environment():
     """设置测试环境变量和全局配置"""
     # 如果存在测试API密钥，从环境变量中获取
-    api_key = os.environ.get("CIVITAI_API_KEY", "")
+    # api_key = os.environ.get("CIVITAI_API_KEY", "")  # 可以使用 _ 前缀或完全删除
 
     # 配置测试时使用的基本参数
     os.environ["CIVITAI_TEST_MODE"] = "1"
@@ -41,11 +42,13 @@ def mock_successful_api_response():
         "metadata": {"totalItems": 1, "currentPage": 1, "pageSize": 1, "totalPages": 1},
     }
 
+
 @pytest.fixture
 def temp_directory():
     """提供临时目录用于测试文件下载"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         yield tmpdirname
+
 
 @pytest.fixture
 def mock_api_response():
@@ -58,8 +61,11 @@ def mock_api_response():
                 "id": 67890,
                 "name": "v1.0",
                 "files": [
-                    {"name": "model.safetensors", "downloadUrl": "https://example.com/model.safetensors"}
-                ]
+                    {
+                        "name": "model.safetensors",
+                        "downloadUrl": "https://example.com/model.safetensors",
+                    }
+                ],
             }
-        ]
+        ],
     }

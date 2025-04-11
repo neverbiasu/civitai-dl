@@ -2,26 +2,23 @@
 
 import os
 import gradio as gr
-from typing import Optional
 
 from civitai_dl import __version__
-from civitai_dl.api.client import CivitaiAPI
-from civitai_dl.core.downloader import DownloadEngine
+# from civitai_dl.api.client import CivitaiAPI
+# from civitai_dl.core.downloader import DownloadEngine
 
 
 def create_app():
     """创建并配置WebUI应用"""
-    api = CivitaiAPI()
-    download_engine = DownloadEngine()
+    # api = CivitaiAPI()
+    # download_engine = DownloadEngine()
 
     with gr.Blocks(title=f"Civitai Downloader v{__version__}") as app:
         with gr.Tab("下载模型"):
             with gr.Row():
                 with gr.Column():
                     model_id = gr.Number(label="模型ID", precision=0, minimum=1)
-                    version_id = gr.Number(
-                        label="版本ID (可选)", precision=0, minimum=1
-                    )
+                    version_id = gr.Number(label="版本ID (可选)", precision=0, minimum=1)
                     output_dir = gr.Textbox(
                         label="输出目录", value=os.path.join(os.getcwd(), "downloads")
                     )
@@ -29,9 +26,9 @@ def create_app():
 
                 with gr.Column():
                     status = gr.Textbox(label="状态", interactive=False)
-                    progress = gr.Slider(
-                        minimum=0, maximum=100, value=0, step=0.1, label="下载进度"
-                    )
+                    # progress = gr.Slider(
+                    #     minimum=0, maximum=100, value=0, step=0.1, label="下载进度"
+                    # )
 
         with gr.Tab("浏览模型"):
             with gr.Row():
