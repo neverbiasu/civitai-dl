@@ -14,11 +14,11 @@ DEFAULT_CONFIG = {
     "nsfw_level": "None",
     "auto_extract_metadata": True,
     "default_model_format": None,
-    "proxy": None,                # 默认不使用代理
-    "verify_ssl": True,           # 默认验证SSL证书
-    "timeout": 30,                # 默认超时时间(秒)
-    "max_retries": 3,             # 默认最大重试次数
-    "retry_delay": 2              # 默认重试间隔(秒)
+    "proxy": None,  # 默认不使用代理
+    "verify_ssl": True,  # 默认验证SSL证书
+    "timeout": 30,  # 默认超时时间(秒)
+    "max_retries": 3,  # 默认最大重试次数
+    "retry_delay": 2,  # 默认重试间隔(秒)
 }
 
 # 配置文件路径
@@ -48,7 +48,7 @@ def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
     # 尝试读取配置文件
     if os.path.exists(config_path):
         try:
-            with open(config_path, 'r') as f:
+            with open(config_path, "r") as f:
                 loaded_config = json.load(f)
                 config.update(loaded_config)
                 logger.debug(f"已加载配置文件: {config_path}")
@@ -58,12 +58,12 @@ def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
         logger.debug(f"配置文件不存在，使用默认配置: {config_path}")
 
     # 检查环境变量覆盖
-    if 'CIVITAI_API_KEY' in os.environ:
-        config['api_key'] = os.environ['CIVITAI_API_KEY']
+    if "CIVITAI_API_KEY" in os.environ:
+        config["api_key"] = os.environ["CIVITAI_API_KEY"]
         logger.debug("从环境变量加载了API密钥")
 
-    if 'CIVITAI_PROXY' in os.environ:
-        config['proxy'] = os.environ['CIVITAI_PROXY']
+    if "CIVITAI_PROXY" in os.environ:
+        config["proxy"] = os.environ["CIVITAI_PROXY"]
         logger.debug("从环境变量加载了代理设置")
 
     return config
@@ -77,7 +77,7 @@ def save_config(config: Dict[str, Any], config_path: Optional[str] = None) -> bo
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
 
     try:
-        with open(config_path, 'w') as f:
+        with open(config_path, "w") as f:
             json.dump(config, f, indent=2)
         logger.debug(f"已保存配置到: {config_path}")
         return True

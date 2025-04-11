@@ -6,6 +6,7 @@ from typing import Optional
 
 from civitai_dl import __version__
 from civitai_dl.cli.commands.download import download
+
 # 导入其他命令组...
 
 
@@ -15,7 +16,6 @@ from civitai_dl.cli.commands.download import download
 @click.option("--quiet", "-q", is_flag=True, help="静默模式")
 def cli():
     """Civitai Downloader - 下载和管理Civitai资源"""
-    pass
 
 
 # 注册命令组
@@ -41,7 +41,6 @@ def webui():
 @cli.group()
 def download():
     """下载模型和图像"""
-    pass
 
 
 @download.command("model")
@@ -58,7 +57,6 @@ def download_model(model_id: int, version: Optional[int], output: Optional[str])
 @cli.group()
 def browse():
     """浏览和搜索Civitai上的模型"""
-    pass
 
 
 @browse.command("models")

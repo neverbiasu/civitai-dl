@@ -6,4 +6,4 @@
 from civitai_dl.api.client import CivitaiAPI, APIError
 
 # 为向后兼容性导出所有相同的符号
-__all__ = ['CivitaiAPI', 'APIError']
+__all__ = ["CivitaiAPI", "APIError"]

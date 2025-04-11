@@ -4,6 +4,7 @@ import os
 import gradio as gr
 
 from civitai_dl import __version__
+
 # from civitai_dl.api.client import CivitaiAPI
 # from civitai_dl.core.downloader import DownloadEngine
 

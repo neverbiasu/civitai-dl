@@ -1,9 +1,7 @@
 import os
 import sys
 import click
-from typing import Optional
 
-# 更新导入以使用新的API模块
 from civitai_dl.api import CivitaiAPI
 from civitai_dl.core.downloader import DownloadEngine
 from civitai_dl.utils.logger import get_logger
@@ -30,8 +28,19 @@ def download():
 @click.option("--no-verify-ssl", is_flag=True, help="不验证SSL证书")
 @click.option("--timeout", type=int, default=30, help="请求超时时间(秒)")
 @click.option("--retries", type=int, default=3, help="最大重试次数")
-def download_model(model_id, version, output, format, with_images, image_limit,
-                   proxy, no_proxy, no_verify_ssl, timeout, retries):
+def download_model(
+    model_id,
+    version,
+    output,
+    format,
+    with_images,
+    image_limit,
+    proxy,
+    no_proxy,
+    no_verify_ssl,
+    timeout,
+    retries,
+):
     """下载指定ID的模型"""
     try:
         config = get_config()
@@ -42,21 +51,21 @@ def download_model(model_id, version, output, format, with_images, image_limit,
         elif proxy:
             effective_proxy = proxy
         else:
-            effective_proxy = config.get('proxy')
+            effective_proxy = config.get("proxy")
 
         # 更新: 使用 verify 替代 verify_ssl
         api = CivitaiAPI(
-            api_key=config.get('api_key'),
+            api_key=config.get("api_key"),
             proxy=effective_proxy,
             verify=not no_verify_ssl,  # 更改这里
             timeout=timeout,
-            max_retries=retries
+            max_retries=retries,
         )
 
         # 初始化下载引擎
         downloader = DownloadEngine(
-            output_dir=output or config.get('output_dir', './downloads'),
-            concurrent_downloads=1
+            output_dir=output or config.get("output_dir", "./downloads"),
+            concurrent_downloads=1,
         )
 
         # 获取模型信息
@@ -64,16 +73,16 @@ def download_model(model_id, version, output, format, with_images, image_limit,
         model_info = api.get_model(model_id)
 
         if not model_info:
-            click.secho(f"错误: 未找到ID为{model_id}的模型", fg='red')
+            click.secho(f"错误: 未找到ID为{model_id}的模型", fg="red")
             sys.exit(1)
 
         click.echo(f"模型名称: {model_info['name']}")
 
         # 获取版本信息
-        versions = model_info['modelVersions']
+        versions = model_info["modelVersions"]
 
         if not versions:
-            click.secho(f"错误: 该模型没有可用版本", fg='red')
+            click.secho("错误: 该模型没有可用版本")
             sys.exit(1)
 
         target_version = None
@@ -81,12 +90,12 @@ def download_model(model_id, version, output, format, with_images, image_limit,
         if version:
             # 查找指定版本
             for v in versions:
-                if v['id'] == version:
+                if v["id"] == version:
                     target_version = v
                     break
 
             if not target_version:
-                click.secho(f"错误: 未找到ID为{version}的版本", fg='red')
+                click.secho(f"错误: 未找到ID为{version}的版本", fg="red")
                 sys.exit(1)
         else:
             # 使用最新版本
@@ -95,10 +104,10 @@ def download_model(model_id, version, output, format, with_images, image_limit,
         click.echo(f"版本: {target_version['name']}")
 
         # 获取下载文件
-        files = target_version['files']
+        files = target_version["files"]
 
         if not files:
-            click.secho(f"错误: 该版本没有可用文件", fg='red')
+            click.secho("错误: 该版本没有可用文件")
             sys.exit(1)
 
         # 如果指定了格式，尝试找到匹配的文件
@@ -106,37 +115,38 @@ def download_model(model_id, version, output, format, with_images, image_limit,
 
         if format:
             for file in files:
-                if file['name'].lower().endswith(format.lower()):
+                if file["name"].lower().endswith(format.lower()):
                     target_file = file
                     break
 
             if not target_file:
-                click.secho(f"警告: 未找到格式为{format}的文件，将下载默认文件", fg='yellow')
+                click.secho(f"警告: 未找到格式为{format}的文件，将下载默认文件", fg="yellow")
                 target_file = files[0]
         else:
             # 使用第一个文件（通常是主模型文件）
             target_file = files[0]
 
         # 开始下载
-        file_name = target_file['name']
-        file_size = target_file['sizeKB'] * 1024
-        download_url = target_file['downloadUrl']
+        file_name = target_file["name"]
+        file_size = target_file["sizeKB"] * 1024
+        download_url = target_file["downloadUrl"]
 
         click.echo(f"准备下载: {file_name} ({format_size(file_size)})")
 
         # 设置进度回调
         def progress_callback(downloaded, total):
             percent = (downloaded / total) * 100
-            click.echo(f"\r下载进度: {percent:.1f}% ({format_size(downloaded)}/{format_size(total)})", nl=False)
+            click.echo(
+                f"\r下载进度: {percent:.1f}% ({format_size(downloaded)}/{format_size(total)})",
+                nl=False,
+            )
 
         # 下载文件
         save_path = os.path.join(downloader.output_dir, file_name)
         click.echo(f"下载到: {save_path}")
 
         download_task = downloader.download(
-            url=download_url,
-            file_path=save_path,
-            progress_callback=progress_callback
+            url=download_url, file_path=save_path, progress_callback=progress_callback
         )
 
         # 等待下载完成
@@ -145,11 +155,11 @@ def download_model(model_id, version, output, format, with_images, image_limit,
 
         # 如果需要下载图像
         if with_images:
-            click.echo(f"开始下载模型示例图像...")
-            download_images(model_id, target_version['id'], image_limit, output)
+            click.echo("开始下载模型示例图像...")
+            download_images(model_id, target_version["id"], image_limit, output)
 
     except Exception as e:
-        click.secho(f"下载过程中出错: {str(e)}", fg='red')
+        click.secho(f"下载过程中出错: {str(e)}", fg="red")
         logger.exception("下载失败")
         sys.exit(1)
 

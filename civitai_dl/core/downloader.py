@@ -6,7 +6,7 @@ import threading
 import requests
 import urllib.parse
 import re
-from typing import Callable, Optional, Dict, List, Any
+from typing import Callable, Optional
 from concurrent.futures import ThreadPoolExecutor
 
 from civitai_dl.utils.logger import get_logger
@@ -20,13 +20,13 @@ class DownloadTask:
     def __init__(self, url: str, file_path=None, output_path=None, filename=None):
         """
         初始化下载任务
-        
+
         可以通过两种方式指定保存路径:
         1. 直接使用 file_path 参数指定完整路径
         2. 使用 output_path 和 filename 参数组合指定路径
         """
         self.url = url
-        
+
         # 兼容多种参数形式
         if file_path:
             self._file_path = file_path
@@ -38,11 +38,11 @@ class DownloadTask:
             if not filename:
                 filename = f"download_{int(time.time())}"
             self._file_path = filename
-        
+
         # 存储原始参数，方便测试访问
         self.output_path = output_path
         self.filename = filename if filename else os.path.basename(self._file_path)
-        
+
         self.total_size: Optional[int] = None
         self.downloaded_size: int = 0
         self._progress_callback: Optional[Callable[[int, int], None]] = None
@@ -74,7 +74,7 @@ class DownloadTask:
         elif value > 1:
             value = 1
         self._progress = value
-        
+
         # 如果有总大小，也更新已下载大小
         if self.total_size:
             self.downloaded_size = int(self.total_size * value)
@@ -83,7 +83,7 @@ class DownloadTask:
     def file_path(self):
         """获取文件路径"""
         return self._file_path
-        
+
     @file_path.setter
     def file_path(self, value):
         """设置文件路径"""
@@ -103,7 +103,6 @@ class DownloadTask:
         _, url_ext = os.path.splitext(url_path)
 
         # 模型文件常用扩展名
-        model_extensions = ['.safetensors', '.ckpt', '.pt', '.bin', '.pth']
 
         # 如果URL中有扩展名，使用它
         if url_ext and len(url_ext) > 1:
@@ -142,8 +141,8 @@ class DownloadTask:
             headers = {}
             try:
                 head_response = requests.head(self.url, timeout=10)
-                if 'Content-Disposition' in head_response.headers:
-                    content_disposition = head_response.headers['Content-Disposition']
+                if "Content-Disposition" in head_response.headers:
+                    content_disposition = head_response.headers["Content-Disposition"]
                     filename = self._extract_filename_from_header(content_disposition)
                     if filename:
                         # 更新文件路径，保留原来的目录
@@ -156,33 +155,38 @@ class DownloadTask:
             # 检查是否已有部分下载
             if os.path.exists(self.file_path):
                 downloaded_size = os.path.getsize(self.file_path)
-                mode = 'ab'  # 追加模式
-                headers['Range'] = f'bytes={downloaded_size}-'
+                mode = "ab"  # 追加模式
+                headers["Range"] = f"bytes={downloaded_size}-"
                 self.downloaded_size = downloaded_size
             else:
-                mode = 'wb'
+                mode = "wb"
                 self.downloaded_size = 0
 
             # 发起请求
-            with requests.get(self.url, headers=headers, stream=True, timeout=30) as response:
+            with requests.get(
+                self.url, headers=headers, stream=True, timeout=30
+            ) as response:
                 response.raise_for_status()
 
                 # 再次检查Content-Disposition
-                if 'Content-Disposition' in response.headers:
-                    content_disposition = response.headers['Content-Disposition']
+                if "Content-Disposition" in response.headers:
+                    content_disposition = response.headers["Content-Disposition"]
                     filename = self._extract_filename_from_header(content_disposition)
-                    if filename and mode == 'wb':  # 只有在新下载时才更新文件名
+                    if filename and mode == "wb":  # 只有在新下载时才更新文件名
                         # 更新文件路径，保留原来的目录
                         dir_path = os.path.dirname(self.file_path)
                         self.file_path = os.path.join(dir_path, filename)
                         logger.info(f"从Content-Disposition更新文件名: {filename}")
 
                 # 获取文件总大小
-                if 'content-length' in response.headers:
+                if "content-length" in response.headers:
                     if self.downloaded_size > 0:
-                        self.total_size = int(response.headers['content-length']) + self.downloaded_size
+                        self.total_size = (
+                            int(response.headers["content-length"])
+                            + self.downloaded_size
+                        )
                     else:
-                        self.total_size = int(response.headers['content-length'])
+                        self.total_size = int(response.headers["content-length"])
                 else:
                     self.total_size = None
 
@@ -211,7 +215,9 @@ class DownloadTask:
 
                                 # 调用进度回调
                                 if self.progress_callback and self.total_size:
-                                    self.progress_callback(self.downloaded_size, self.total_size)
+                                    self.progress_callback(
+                                        self.downloaded_size, self.total_size
+                                    )
 
                                 bytes_since_last_update = 0
                                 last_update_time = current_time
@@ -235,7 +241,9 @@ class DownloadTask:
             return None
 
         # 正则表达式匹配文件名
-        filename_match = re.search(r'filename=(?:"([^"]+)"|([^;\s]+))', content_disposition)
+        filename_match = re.search(
+            r'filename=(?:"([^"]+)"|([^;\s]+))', content_disposition
+        )
         if filename_match:
             filename = filename_match.group(1) or filename_match.group(2)
             # URL解码文件名
@@ -267,11 +275,18 @@ class DownloadTask:
 class DownloadEngine:
     """下载引擎，管理多个下载任务"""
 
-    def __init__(self, output_dir="./downloads", concurrent_downloads=3, chunk_size=8192, 
-                 max_workers=None, retry_times=3, retry_delay=5):
+    def __init__(
+        self,
+        output_dir="./downloads",
+        concurrent_downloads=3,
+        chunk_size=8192,
+        max_workers=None,
+        retry_times=3,
+        retry_delay=5,
+    ):
         """
         初始化下载引擎
-        
+
         Args:
             output_dir: 默认输出目录
             concurrent_downloads: 并行下载任务数量
@@ -281,7 +296,9 @@ class DownloadEngine:
             retry_delay: 重试延迟（秒）
         """
         self.output_dir = output_dir
-        self.concurrent_downloads = max_workers if max_workers is not None else concurrent_downloads
+        self.concurrent_downloads = (
+            max_workers if max_workers is not None else concurrent_downloads
+        )
         self.chunk_size = chunk_size
         self.retry_times = retry_times
         self.retry_delay = retry_delay
@@ -292,15 +309,15 @@ class DownloadEngine:
 
         # 确保输出目录存在
         os.makedirs(output_dir, exist_ok=True)
-    
+
     def register_completion_callback(self, callback):
         """注册下载完成回调"""
         self._completion_callbacks.append(callback)
-    
+
     def register_progress_callback(self, callback):
         """注册下载进度回调"""
         self._progress_callbacks.append(callback)
-        
+
     def _download_file(self, task):
         """执行文件下载（兼容旧接口）"""
         try:
@@ -318,7 +335,7 @@ class DownloadEngine:
                 except Exception as cb_error:
                     logger.error(f"回调函数执行错误: {cb_error}")
             raise e
-            
+
     def _download_with_retry(self, task):
         """带重试的下载（兼容旧接口）"""
         for attempt in range(self.retry_times + 1):
@@ -326,12 +343,14 @@ class DownloadEngine:
                 return self._download_file(task)
             except Exception as e:
                 if attempt < self.retry_times:
-                    logger.warning(f"下载失败，将在 {self.retry_delay} 秒后重试 ({attempt+1}/{self.retry_times})")
+                    logger.warning(
+                        f"下载失败，将在 {self.retry_delay} 秒后重试 ({attempt+1}/{self.retry_times})"
+                    )
                     time.sleep(self.retry_delay)
                 else:
                     logger.error(f"下载在 {self.retry_times} 次尝试后仍然失败: {e}")
                     raise
-                    
+
     def shutdown(self):
         """关闭下载引擎"""
         self.cancel_all()
@@ -358,22 +377,27 @@ class DownloadEngine:
         base_filename = os.path.basename(path)
 
         # 如果URL包含查询参数或路径不包含文件名，生成基于URL的文件名
-        if not base_filename or base_filename.startswith('models') or '.' not in base_filename:
+        if (
+            not base_filename
+            or base_filename.startswith("models")
+            or "." not in base_filename
+        ):
             # 从URL中提取模型ID
             model_id = None
-            if '/models/' in url:
-                model_id = url.split('/models/')[-1].split('/')[0].split('?')[0]
+            if "/models/" in url:
+                model_id = url.split("/models/")[-1].split("/")[0].split("?")[0]
 
             if model_id and model_id.isdigit():
                 base_filename = f"model_{model_id}.safetensors"
             else:
                 # 生成通用文件名
                 import hashlib
+
                 hash_obj = hashlib.md5(url.encode())
                 base_filename = f"download_{hash_obj.hexdigest()[:8]}.safetensors"
 
         # 如果没有扩展名，添加默认扩展名
-        if '.' not in base_filename:
+        if "." not in base_filename:
             base_filename += ".safetensors"
 
         return base_filename
@@ -382,7 +406,7 @@ class DownloadEngine:
         """批量下载多个URL"""
         tasks = []
         for url in urls:
-            file_name = url.split('/')[-1].split('?')[0]
+            file_name = url.split("/")[-1].split("?")[0]
             file_path = os.path.join(output_dir or self.output_dir, file_name)
             task = DownloadTask(url, file_path)
             task.start(progress_callback)

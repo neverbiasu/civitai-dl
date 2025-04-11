@@ -13,7 +13,7 @@ LOG_LEVELS = {
     "info": logging.INFO,
     "warning": logging.WARNING,
     "error": logging.ERROR,
-    "critical": logging.CRITICAL
+    "critical": logging.CRITICAL,
 }
 
 _loggers: Dict[str, logging.Logger] = {}
@@ -34,8 +34,9 @@ def get_logger(name: str) -> logging.Logger:
     return logger
 
 
-def setup_logger(logger: logging.Logger, level: Optional[str] = None,
-                 log_file: Optional[str] = None):
+def setup_logger(
+    logger: logging.Logger, level: Optional[str] = None, log_file: Optional[str] = None
+):
     """设置日志器的级别和处理器"""
     # 设置日志级别
     if level:

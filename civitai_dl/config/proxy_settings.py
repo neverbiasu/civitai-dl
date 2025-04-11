@@ -27,7 +27,11 @@ def get_proxy_settings() -> Dict[str, str]:
     proxy_settings = {}
 
     # 在CI环境中禁用代理
-    if is_ci_environment() or os.environ.get("NO_PROXY") == "true" or os.environ.get("DISABLE_PROXY") == "true":
+    if (
+        is_ci_environment()
+        or os.environ.get("NO_PROXY") == "true"
+        or os.environ.get("DISABLE_PROXY") == "true"
+    ):
         return {}
 
     # 首先尝试从环境变量获取

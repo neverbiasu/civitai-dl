@@ -5,7 +5,7 @@ Civitai API 客户端
 import time
 import threading
 import requests
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 
 from civitai_dl.utils.logger import get_logger
 
@@ -27,7 +27,9 @@ class APIError(Exception):
         # 构建包含解决方案的完整错误消息
         full_message = message
         if self.solutions:
-            full_message += "\nPossible solutions:\n" + "\n".join([f"{i+1}. {s}" for i, s in enumerate(self.solutions)])
+            full_message += "\nPossible solutions:\n" + "\n".join(
+                [f"{i+1}. {s}" for i, s in enumerate(self.solutions)]
+            )
 
         super().__init__(full_message)
 
@@ -35,74 +37,94 @@ class APIError(Exception):
         """根据错误类型提供可能的解决方案"""
         solutions = []
 
-        if 'Proxy' in self.message or 'proxy' in self.message:
-            solutions.extend([
-                "Check if the proxy server is running",
-                "Verify the proxy address and port",
-                "Ensure the proxy server allows access to the target site",
-                "Try using a different proxy server",
-                "Use --no-proxy option to disable proxy"
-            ])
-        elif 'timeout' in self.message.lower():
-            solutions.extend([
-                "Check your internet connection",
-                "Try again later, the server might be busy",
-                "Increase the timeout value using --timeout option"
-            ])
+        if "Proxy" in self.message or "proxy" in self.message:
+            solutions.extend(
+                [
+                    "Check if the proxy server is running",
+                    "Verify the proxy address and port",
+                    "Ensure the proxy server allows access to the target site",
+                    "Try using a different proxy server",
+                    "Use --no-proxy option to disable proxy",
+                ]
+            )
+        elif "timeout" in self.message.lower():
+            solutions.extend(
+                [
+                    "Check your internet connection",
+                    "Try again later, the server might be busy",
+                    "Increase the timeout value using --timeout option",
+                ]
+            )
         elif self.status_code == 401:
-            solutions.extend([
-                "Check your API key",
-                "Ensure your API key has the necessary permissions"
-            ])
+            solutions.extend(
+                [
+                    "Check your API key",
+                    "Ensure your API key has the necessary permissions",
+                ]
+            )
         elif self.status_code == 403:
-            solutions.extend([
-                "You don't have permission to access this resource",
-                "Check if you need to authenticate",
-                "Ensure your API key is correct"
-            ])
+            solutions.extend(
+                [
+                    "You don't have permission to access this resource",
+                    "Check if you need to authenticate",
+                    "Ensure your API key is correct",
+                ]
+            )
         elif self.status_code == 404:
-            solutions.extend([
-                "The requested resource does not exist",
-                "Check the ID or endpoint URL"
-            ])
+            solutions.extend(
+                [
+                    "The requested resource does not exist",
+                    "Check the ID or endpoint URL",
+                ]
+            )
         elif self.status_code and self.status_code >= 500:
-            solutions.extend([
-                "The server encountered an error",
-                "Try again later",
-                "Check Civitai status page for any outages"
-            ])
+            solutions.extend(
+                [
+                    "The server encountered an error",
+                    "Try again later",
+                    "Check Civitai status page for any outages",
+                ]
+            )
 
         # 添加通用解决方案
         if not solutions:
-            solutions.extend([
-                "Check your internet connection",
-                "Verify the API endpoint is correct",
-                "Ensure you're using the latest version of the client"
-            ])
+            solutions.extend(
+                [
+                    "Check your internet connection",
+                    "Verify the API endpoint is correct",
+                    "Ensure you're using the latest version of the client",
+                ]
+            )
 
         return solutions
 
 
 class ResourceNotFoundError(APIError):
     """Exception raised when the requested resource is not found."""
-    pass
 
 
 class RateLimitError(APIError):
     """Exception raised when API rate limit is exceeded."""
-    pass
 
 
 class AuthenticationError(APIError):
     """Exception raised when API authentication fails."""
-    pass
 
 
 class CivitaiAPI:
     """Civitai API客户端"""
 
-    def __init__(self, api_key=None, base_url="https://civitai.com/api/v1",
-                 proxy=None, verify=True, verify_ssl=None, timeout=30, max_retries=3, retry_delay=2):
+    def __init__(
+        self,
+        api_key=None,
+        base_url="https://civitai.com/api/v1",
+        proxy=None,
+        verify=True,
+        verify_ssl=None,
+        timeout=30,
+        max_retries=3,
+        retry_delay=2,
+    ):
         """
         初始化API客户端
         """
@@ -112,36 +134,36 @@ class CivitaiAPI:
         self.timeout = timeout
         self.max_retries = max_retries
         self.retry_delay = retry_delay
-        
+
         # 添加request_lock用于线程安全
         self.request_lock = threading.Lock()
-        
+
         # 添加公开的headers属性，以支持测试
         self.headers = {}
-        
+
         if api_key:
             self.headers["Authorization"] = f"Bearer {api_key}"
-        
+
         # 设置到session中
         self.session.headers.update(self.headers)
 
         # 设置代理
         if proxy:
-            self.session.proxies = {
-                'http': proxy,
-                'https': proxy
-            }
+            self.session.proxies = {"http": proxy, "https": proxy}
             logger.info(f"使用代理: {proxy}")
 
         # SSL验证设置 (兼容两种参数名)
         if verify_ssl is not None:
             verify = verify_ssl
-            
+
         if not verify:
             self.session.verify = False
-            logger.warning("Warning: SSL verification is disabled, this may pose security risks")
+            logger.warning(
+                "Warning: SSL verification is disabled, this may pose security risks"
+            )
             # 禁用 urllib3 的警告
             import urllib3
+
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
         # 请求限制配置
@@ -288,15 +310,21 @@ class CivitaiAPI:
 
     def get_model(self, model_id: int) -> dict:
         """获取模型详细信息"""
-        try:
-            # 使用get方法而不是_make_request，确保一致的错误处理
-            return self.get(f"models/{model_id}")
-        except Exception as e:
-            # 原样重新抛出异常
-            raise
+        # 使用get方法而不是_make_request，确保一致的错误处理
+        return self.get(f"models/{model_id}")
 
-    def search_models(self, query=None, tag=None, username=None, type=None,
-                      nsfw=None, sort=None, period=None, page=1, page_size=20) -> dict:
+    def search_models(
+        self,
+        query=None,
+        tag=None,
+        username=None,
+        type=None,
+        nsfw=None,
+        sort=None,
+        period=None,
+        page=1,
+        page_size=20,
+    ) -> dict:
         """搜索模型"""
         # ...existing code...
         return {}
@@ -366,14 +394,14 @@ class CivitaiAPI:
     def _make_request(self, method, endpoint, params=None, data=None, json=None):
         """发送API请求并处理限制"""
         # 实现基本功能以支持测试
-        url = f"{self.base_url}/{endpoint.lstrip('/')}"
+        f"{self.base_url}/{endpoint.lstrip('/')}"
 
         # 模拟返回数据，支持测试
         if "models" in endpoint:
             return {
                 "items": [
                     {
-                        "id": 1, 
+                        "id": 1,
                         "name": "Test Model",
                         "creator": {"username": "tester"},
                         "type": "Checkpoint",
@@ -388,19 +416,19 @@ class CivitaiAPI:
                                         "id": 1001,
                                         "sizeKB": 1024,
                                         "downloadUrl": "https://example.com/file.safetensors",
-                                        "primary": True
+                                        "primary": True,
                                     }
-                                ]
+                                ],
                             }
-                        ]
+                        ],
                     }
                 ],
                 "metadata": {
                     "totalItems": 1,
                     "currentPage": 1,
                     "pageSize": 10,
-                    "totalPages": 1
-                }
+                    "totalPages": 1,
+                },
             }
 
         return {}
