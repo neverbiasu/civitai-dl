@@ -10,6 +10,8 @@ DEFAULT_PROXY = "http://127.0.0.1:7890"
 DEFAULT_NO_PROXY = "localhost,127.0.0.1"
 
 # CI环境检测
+
+
 def is_ci_environment() -> bool:
     """检测当前是否在CI环境中运行"""
     return os.environ.get("CI") == "true" or os.environ.get("CI_TESTING") == "true"
