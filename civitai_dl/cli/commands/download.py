@@ -13,7 +13,6 @@ logger = get_logger(__name__)
 @click.group()
 def download():
     """下载模型和图像"""
-    pass
 
 
 @download.command("model")

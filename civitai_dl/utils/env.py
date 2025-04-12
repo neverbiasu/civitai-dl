@@ -2,10 +2,11 @@
 import os
 import re
 
+
 def load_env_file(env_file=None):
     """
     从.env文件加载环境变量
-    
+
     Args:
         env_file: .env文件路径，如果为None，则尝试在项目根目录查找
     """
@@ -13,7 +14,7 @@ def load_env_file(env_file=None):
         # 尝试找到项目根目录
         current_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         env_file = os.path.join(current_dir, '.env')
-    
+
     # 如果.env文件存在，加载它
     if os.path.isfile(env_file):
         print(f"从 {env_file} 加载环境变量")
@@ -22,7 +23,7 @@ def load_env_file(env_file=None):
                 line = line.strip()
                 if not line or line.startswith('#'):
                     continue
-                    
+
                 match = re.match(r'^([A-Za-z0-9_]+)=(.*)$', line)
                 if match:
                     key, value = match.groups()

@@ -239,7 +239,7 @@ class DownloadTask:
             logger.error(f"下载失败: {self.url} -> {self.file_path}, 错误: {str(e)}")
 
             # 触发完成回调，确保错误情况也会通知
-            self._trigger_completion_callbacks() # 调用辅助方法
+            self._trigger_completion_callbacks()  # 调用辅助方法
 
     def _trigger_completion_callbacks(self):
         """触发所有注册的完成回调函数"""
@@ -248,7 +248,7 @@ class DownloadTask:
         if (not isinstance(callbacks, list)):
             logger.warning("_completion_callbacks 不是列表，无法触发回调")
             return
-            
+
         for callback in callbacks:
             try:
                 callback(self)
@@ -379,14 +379,14 @@ class DownloadEngine:
     def download(self, url, file_path=None, output_path=None, filename=None, progress_callback=None):
         """
         创建并启动一个下载任务
-        
+
         Args:
             url: 下载链接
             file_path: 完整的文件保存路径
             output_path: 文件保存目录，与filename一起使用
             filename: 文件名称，与output_path一起使用
             progress_callback: 进度回调函数
-            
+
         Returns:
             DownloadTask 实例
         """
@@ -405,7 +405,7 @@ class DownloadEngine:
         self.tasks.append(task)
         # 传递引擎的进度回调给任务
         combined_progress_callback = self._create_combined_progress_callback(progress_callback)
-        return task.start(combined_progress_callback) # 使用组合的回调
+        return task.start(combined_progress_callback)  # 使用组合的回调
 
     def _create_combined_progress_callback(self, task_specific_callback):
         """创建一个结合了引擎全局回调和任务特定回调的函数"""
