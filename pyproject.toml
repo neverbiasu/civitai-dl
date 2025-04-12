@@ -33,6 +33,14 @@ mypy = "^1.0.0"
 [tool.poetry.scripts]
 civitai-dl = "civitai_downloader.cli.main:main"
 
+[tool.autopep8]
+max_line_length = 120
+aggressive = true
+
+[tool.autoflake]
+remove_unused_variables = true
+remove_all_unused_imports = true
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
