@@ -12,52 +12,13 @@ from civitai_dl.api.client import CivitaiAPI, ResourceNotFoundError, APIError
 class TestCivitaiAPI:
     """Civitai API客户端测试"""
 
-    @pytest.fixture
-    @patch("civitai_dl.api.client.CivitaiAPI._rate_limited_request")
-    def api_client(self, mock_request):
-        """创建API客户端实例，但模拟其网络请求"""
-        # 设置模拟响应
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "items": [
-                {
-                    "id": 1,
-                    "name": "Test Model",
-                    "creator": {"username": "tester"},
-                    "type": "Checkpoint",
-                    "stats": {"downloadCount": 100, "rating": 4.5},
-                    "modelVersions": [
-                        {
-                            "id": 101,
-                            "name": "v1.0",
-                            "files": [
-                                {
-                                    "name": "model.safetensors",
-                                    "id": 1001,
-                                    "sizeKB": 1024,
-                                    "downloadUrl": "https://example.com/file.safetensors",
-                                    "primary": True,
-                                }
-                            ],
-                        }
-                    ],
-                }
-            ],
-            "metadata": {
-                "totalItems": 1,
-                "currentPage": 1,
-                "pageSize": 10,
-                "totalPages": 1,
-            },
-        }
-        mock_request.return_value = mock_response
-
-        # 使用原始的CivitaiAPI类，但网络请求被模拟
-        return CivitaiAPI(verify=False)
-
-    def test_get_models(self, api_client):
+    def test_get_models(self, api_client):  # 现在这里的 api_client 来自 conftest.py
         """测试获取模型列表功能"""
+        # 检查是否有代理设置
+        proxy = os.environ.get("CIVITAI_PROXY") or os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
+        if not proxy:
+            pytest.skip("未设置代理，跳过测试")
+
         # 增加最大重试次数和等待时间
         max_retries = 3
         retry_wait = 5
@@ -92,8 +53,16 @@ class TestCivitaiAPI:
                     # 最后一次尝试仍失败，则测试失败
                     pytest.fail(f"API请求在 {max_retries} 次尝试后仍失败: {str(e)}")
 
-    def test_get_model_details(self, api_client):
+    def test_get_model_details(self, api_client):  # 现在这里的 api_client 来自 conftest.py
         """测试获取模型详情功能"""
+        # 检查是否有代理设置
+        proxy = os.environ.get("CIVITAI_PROXY") or os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
+        if not proxy:
+            pytest.skip("未设置代理，跳过测试")
+
+        # 打印代理设置以便调试
+        print(f"当前使用的代理设置: {proxy}")
+
         # 增加最大重试次数和等待时间
         max_retries = 3
         retry_wait = 5

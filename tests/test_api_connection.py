@@ -6,6 +6,7 @@
 import os
 import sys
 import logging
+import pytest
 from civitai_dl.api import CivitaiAPI
 
 # 配置日志
@@ -14,18 +15,24 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 设置代理环境变量 - 根据实际环境修改
-os.environ["HTTP_PROXY"] = "http://127.0.0.1:7890"
-os.environ["HTTPS_PROXY"] = "http://127.0.0.1:7890"
 
-
-def test_api_connection(verify_ssl=False):
+def test_api_connection():
     """测试API连接，使用系统代理"""
     logger.info("开始测试 Civitai API 连接...")
 
+    # 获取代理设置
+    proxy = os.environ.get("CIVITAI_PROXY") or os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
+
+    # 如果没有代理设置，跳过测试
+    if not proxy:
+        pytest.skip("未设置代理，跳过测试")
+        return
+
+    logger.info(f"使用代理: {proxy}")
+
     try:
         # 创建API客户端（禁用SSL验证）
-        api = CivitaiAPI(verify_ssl=verify_ssl)
+        api = CivitaiAPI(proxy=proxy, verify=False)
 
         # 测试获取模型列表
         logger.info("获取模型列表...")
@@ -38,21 +45,25 @@ def test_api_connection(verify_ssl=False):
             logger.info(f"  - 模型ID: {model['id']}")
             logger.info(f"  - 模型类型: {model['type']}")
 
-            return True
+            assert True, "API连接成功"
         else:
             logger.error("未返回有效的模型数据")
-            return False
+            assert False, "API未返回有效的模型数据"
     except Exception as e:
         logger.error(f"API连接测试失败: {type(e).__name__}: {str(e)}")
-        return False
+        assert False, f"API连接测试失败: {str(e)}"
 
 
 if __name__ == "__main__":
-    # 默认禁用SSL验证以解决代理SSL问题
-    success = test_api_connection(verify_ssl=False)
-    if success:
-        logger.info("API连接测试成功!")
+    # 这里可以手动设置代理环境变量
+    if not (os.environ.get("CIVITAI_PROXY") or os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")):
+        os.environ["HTTP_PROXY"] = "http://127.0.0.1:7890"
+        os.environ["HTTPS_PROXY"] = "http://127.0.0.1:7890"
+
+    try:
+        test_api_connection()
+        print("API连接测试成功!")
         sys.exit(0)
-    else:
-        logger.error("API连接测试失败!")
+    except Exception as e:
+        print(f"API连接测试失败: {e}")
         sys.exit(1)

@@ -4,11 +4,10 @@
 import os
 import pytest
 import tempfile
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import requests
-import time
 import unittest
-from unittest.mock import MagicMock
+import threading
 
 from civitai_dl.core.downloader import DownloadEngine, DownloadTask
 
@@ -69,7 +68,7 @@ class TestDownloadTask:
 
 
 class TestDownloadEngine:
-    """下载引擎类测试 (pytest风格)"""
+    """下载引擎类测试"""
 
     @pytest.fixture
     def download_engine(self):
@@ -92,75 +91,75 @@ class TestDownloadEngine:
         assert download_engine.retry_delay == 5
 
     @patch("requests.get")
-    @patch("civitai_dl.core.downloader.DownloadEngine._download_with_retry")
     def test_download_file(
-        self, mock_download, mock_get, download_engine, temp_download_dir
+        self, mock_get, download_engine, temp_download_dir
     ):
         """测试文件下载功能"""
-        # 准备一个完成的Future和下载结果
-        result_file = os.path.join(temp_download_dir, "test.zip")
+        os.path.join(temp_download_dir, "test.zip")
 
-        # 直接模拟下载完成
-        def download_complete(task):
-            task.status = "completed"
-            task.progress = 1.0
-            task.end_time = time.time()
-            return result_file
-
-        mock_download.side_effect = download_complete
-
-        # 创建测试文件
-        with open(result_file, "wb") as f:
-            f.write(b"test_data")
+        # 配置 mock_get 以模拟成功的下载
+        mock_response = MagicMock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.headers = {'content-length': '100', 'Content-Disposition': 'attachment; filename="test.zip"'}
+        # 模拟 iter_content 返回数据块
+        mock_response.iter_content.return_value = [b'a' * 50, b'b' * 50]
+        # 让 requests.get 返回这个模拟响应
+        mock_get.return_value.__enter__.return_value = mock_response
 
         # 执行下载
         task = download_engine.download(
             url="https://example.com/file.zip",
             output_path=temp_download_dir,
-            filename="test.zip",
+            filename="original_name.zip",  # 使用一个不同的初始名测试 Content-Disposition
         )
 
-        # 验证下载参数和状态
-        mock_download.assert_called_once()
-        assert task.status == "completed"
-        assert os.path.exists(result_file)
+        # 等待下载完成
+        task.wait()
+
+        # 验证下载状态和文件
+        assert task.status == "completed", f"任务状态应为 completed，实际为 {task.status}"
+        # 验证文件名是否根据 Content-Disposition 更新
+        expected_final_path = os.path.join(temp_download_dir, "test.zip")
+        assert task.file_path == expected_final_path, f"最终文件路径应为 {expected_final_path}，实际为 {task.file_path}"
+        assert os.path.exists(expected_final_path), f"文件 {expected_final_path} 应存在"
+        # 验证文件大小
+        assert os.path.getsize(expected_final_path) == 100
 
     @patch("requests.get")
     def test_download_error_handling(
         self, mock_get, download_engine, temp_download_dir
     ):
         """测试错误处理"""
-        # 使用更可控的方式模拟请求异常
+        # 模拟请求失败
         mock_get.side_effect = requests.RequestException("下载失败")
 
-        # 先清空现有回调以避免测试相互影响
-        download_engine._completion_callbacks.clear()
-
-        # 简单存储回调触发计数
-        callback_count = [0]
+        # 添加一个回调函数
+        callback_called = threading.Event()  # 使用 Event 替代计数器，更适合线程环境
 
         def completion_callback(task):
-            callback_count[0] += 1
+            # 可以在这里添加断言检查 task 状态
+            assert task.status == "failed"
+            assert "下载失败" in str(task.error) if task.error else False
+            callback_called.set()  # 设置事件表示回调被调用
 
+        # 注册回调
         download_engine.register_completion_callback(completion_callback)
 
-        # 直接调用内部方法而非异步提交任务
-        task = DownloadTask(
+        # 创建并开始下载任务
+        task = download_engine.download(
             url="https://example.com/error.zip",
             output_path=temp_download_dir,
             filename="error.zip",
         )
 
-        # 手动触发错误情况
-        try:
-            download_engine._download_file(task)
-        except Exception:  # 改为具体异常或加上明确的注释
-            pass  # 捕获预期异常
+        # 等待任务完成（应该会失败）
+        task.wait()
 
         # 验证错误状态
         assert task.status == "failed"
-        assert "下载失败" in str(task.error)
-        assert callback_count[0] == 1
+        assert "下载失败" in str(task.error) if task.error else ""
+        # 等待回调函数设置事件，设置超时以防死锁
+        assert callback_called.wait(timeout=5), "回调函数应该在5秒内被调用"
 
 
 # Unittest风格的测试类 - 重命名以避免冲突
@@ -259,6 +258,7 @@ class TestDownloadEngineUnittest(unittest.TestCase):
         # 验证结果
         self.assertEqual(task.status, "failed")
         self.assertIn("Network error", task.error)
+        # 验证结果        self.assertEqual(task.status, "failed")        self.assertIn("Network error", task.error)
 
 
 if __name__ == "__main__":
