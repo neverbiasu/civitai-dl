@@ -2,6 +2,8 @@ import os
 import pytest
 import tempfile
 
+import requests
+
 """
 Pytest配置和全局fixtures
 """
