@@ -149,8 +149,18 @@ class CivitaiAPI:
 
         # 设置代理
         if proxy:
-            self.session.proxies = {"http": proxy, "https": proxy}
-            logger.info(f"使用代理: {proxy}")
+            # 确保代理格式正确
+            if isinstance(proxy, str):
+                # 标准代理格式
+                self.session.proxies = {
+                    'http': proxy,
+                    'https': proxy
+                }
+                logger.info(f"使用代理: {proxy}")
+            elif isinstance(proxy, dict):
+                # 如果传入的是字典格式，直接使用
+                self.session.proxies = proxy
+                logger.info(f"使用代理配置: {proxy}")
 
         # SSL验证设置 (兼容两种参数名)
         if verify_ssl is not None:

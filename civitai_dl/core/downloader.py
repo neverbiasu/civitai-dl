@@ -28,14 +28,14 @@ class DownloadTask:
         self.url = url
 
         # 兼容多种参数形式
-        if file_path:
+        if (file_path):
             self._file_path = file_path
-        elif output_path and filename:
+        elif (output_path and filename):
             self._file_path = os.path.join(output_path, filename)
         else:
             # 默认使用URL中的文件名
             filename = os.path.basename(urllib.parse.urlparse(url).path)
-            if not filename:
+            if (not filename):
                 filename = f"download_{int(time.time())}"
             self._file_path = filename
 
@@ -62,21 +62,21 @@ class DownloadTask:
     @property
     def progress(self):
         """获取下载进度 (0.0 到 1.0)"""
-        if self.total_size and self.total_size > 0:
+        if (self.total_size and self.total_size > 0):
             return self.downloaded_size / self.total_size
         return self._progress
 
     @progress.setter
     def progress(self, value):
         """设置下载进度"""
-        if value < 0:
+        if (value < 0):
             value = 0
-        elif value > 1:
+        elif (value > 1):
             value = 1
         self._progress = value
 
         # 如果有总大小，也更新已下载大小
-        if self.total_size:
+        if (self.total_size):
             self.downloaded_size = int(self.total_size * value)
 
     @property
@@ -95,7 +95,7 @@ class DownloadTask:
         """确保文件路径有合适的扩展名"""
         # 检查文件是否已有扩展名
         _, ext = os.path.splitext(file_path)
-        if ext and len(ext) > 1:
+        if (ext and len(ext) > 1):
             return file_path
 
         # 从URL中尝试获取扩展名
@@ -105,7 +105,7 @@ class DownloadTask:
         # 模型文件常用扩展名
 
         # 如果URL中有扩展名，使用它
-        if url_ext and len(url_ext) > 1:
+        if (url_ext and len(url_ext) > 1):
             return f"{file_path}{url_ext}"
 
         # 默认使用safetensors作为扩展名（最常用的模型格式）
@@ -114,14 +114,14 @@ class DownloadTask:
     @property
     def eta(self) -> Optional[int]:
         """获取预估完成时间(秒)"""
-        if self.speed > 0 and self.total_size:
+        if (self.speed > 0 and self.total_size):
             remaining_bytes = self.total_size - self.downloaded_size
             return int(remaining_bytes / self.speed)
         return None
 
     def start(self, progress_callback=None):
         """开始下载任务"""
-        if self.status != "pending":
+        if (self.status != "pending"):
             return
 
         self.progress_callback = progress_callback
@@ -141,10 +141,10 @@ class DownloadTask:
             headers = {}
             try:
                 head_response = requests.head(self.url, timeout=10)
-                if "Content-Disposition" in head_response.headers:
+                if ("Content-Disposition" in head_response.headers):
                     content_disposition = head_response.headers["Content-Disposition"]
                     filename = self._extract_filename_from_header(content_disposition)
-                    if filename:
+                    if (filename):
                         # 更新文件路径，保留原来的目录
                         dir_path = os.path.dirname(self.file_path)
                         self.file_path = os.path.join(dir_path, filename)
@@ -153,7 +153,7 @@ class DownloadTask:
                 logger.warning(f"获取文件信息失败: {e}")
 
             # 检查是否已有部分下载
-            if os.path.exists(self.file_path):
+            if (os.path.exists(self.file_path)):
                 downloaded_size = os.path.getsize(self.file_path)
                 mode = "ab"  # 追加模式
                 headers["Range"] = f"bytes={downloaded_size}-"
@@ -169,18 +169,18 @@ class DownloadTask:
                 response.raise_for_status()
 
                 # 再次检查Content-Disposition
-                if "Content-Disposition" in response.headers:
+                if ("Content-Disposition" in response.headers):
                     content_disposition = response.headers["Content-Disposition"]
                     filename = self._extract_filename_from_header(content_disposition)
-                    if filename and mode == "wb":  # 只有在新下载时才更新文件名
+                    if (filename and mode == "wb"):  # 只有在新下载时才更新文件名
                         # 更新文件路径，保留原来的目录
                         dir_path = os.path.dirname(self.file_path)
                         self.file_path = os.path.join(dir_path, filename)
                         logger.info(f"从Content-Disposition更新文件名: {filename}")
 
                 # 获取文件总大小
-                if "content-length" in response.headers:
-                    if self.downloaded_size > 0:
+                if ("content-length" in response.headers):
+                    if (self.downloaded_size > 0):
                         self.total_size = (
                             int(response.headers["content-length"])
                             + self.downloaded_size
@@ -196,11 +196,11 @@ class DownloadTask:
 
                 with open(self.file_path, mode) as f:
                     for chunk in response.iter_content(chunk_size=8192):
-                        if self._stop_event.is_set():
+                        if (self._stop_event.is_set()):
                             self.status = "canceled"
                             return
 
-                        if chunk:
+                        if (chunk):
                             f.write(chunk)
                             chunk_size = len(chunk)
                             self.downloaded_size += chunk_size
@@ -208,13 +208,13 @@ class DownloadTask:
 
                             # 计算下载速度和更新进度
                             current_time = time.time()
-                            if current_time - last_update_time >= 0.5:  # 每0.5秒更新一次
+                            if (current_time - last_update_time >= 0.5):  # 每0.5秒更新一次
                                 elapsed = current_time - last_update_time
-                                if elapsed > 0:
+                                if (elapsed > 0):
                                     self.speed = bytes_since_last_update / elapsed
 
                                 # 调用进度回调
-                                if self.progress_callback and self.total_size:
+                                if (self.progress_callback and self.total_size):
                                     self.progress_callback(
                                         self.downloaded_size, self.total_size
                                     )
@@ -227,24 +227,44 @@ class DownloadTask:
             logger.info(f"下载完成: {self.file_path}")
 
             # 最终调用一次回调确保进度显示100%
-            if self.progress_callback and self.total_size:
+            if (self.progress_callback and self.total_size):
                 self.progress_callback(self.downloaded_size, self.total_size)
+
+            # 触发完成回调
+            self._trigger_completion_callbacks()
 
         except Exception as e:
             self.status = "failed"
             self.error = str(e)
             logger.error(f"下载失败: {self.url} -> {self.file_path}, 错误: {str(e)}")
 
+            # 触发完成回调，确保错误情况也会通知
+            self._trigger_completion_callbacks() # 调用辅助方法
+
+    def _trigger_completion_callbacks(self):
+        """触发所有注册的完成回调函数"""
+        # 检查 _completion_callbacks 是否存在且可迭代
+        callbacks = getattr(self, '_completion_callbacks', [])
+        if (not isinstance(callbacks, list)):
+            logger.warning("_completion_callbacks 不是列表，无法触发回调")
+            return
+            
+        for callback in callbacks:
+            try:
+                callback(self)
+            except Exception as cb_error:
+                logger.error(f"完成回调函数执行错误: {cb_error}")
+
     def _extract_filename_from_header(self, content_disposition: str) -> Optional[str]:
         """从Content-Disposition头提取文件名"""
-        if not content_disposition:
+        if (not content_disposition):
             return None
 
         # 正则表达式匹配文件名
         filename_match = re.search(
             r'filename=(?:"([^"]+)"|([^;\s]+))', content_disposition
         )
-        if filename_match:
+        if (filename_match):
             filename = filename_match.group(1) or filename_match.group(2)
             # URL解码文件名
             filename = urllib.parse.unquote(filename)
@@ -254,16 +274,16 @@ class DownloadTask:
 
     def cancel(self):
         """取消下载任务"""
-        if self.status == "running":
+        if (self.status == "running"):
             self._stop_event.set()
-            if self._thread:
+            if (self._thread):
                 self._thread.join(timeout=1.0)
             self.status = "canceled"
             logger.info(f"下载已取消: {self.file_path}")
 
     def wait(self, timeout=None):
         """等待下载任务完成"""
-        if self._thread:
+        if (self._thread):
             self._thread.join(timeout=timeout)
         return self.status == "completed"
 
@@ -342,7 +362,7 @@ class DownloadEngine:
             try:
                 return self._download_file(task)
             except Exception as e:
-                if attempt < self.retry_times:
+                if (attempt < self.retry_times):
                     logger.warning(
                         f"下载失败，将在 {self.retry_delay} 秒后重试 ({attempt+1}/{self.retry_times})"
                     )
@@ -356,16 +376,53 @@ class DownloadEngine:
         self.cancel_all()
         self.executor.shutdown(wait=True)
 
-    def download(self, url, file_path=None, progress_callback=None):
-        """创建并启动一个下载任务"""
-        if file_path is None:
-            # 获取更好的文件名
-            file_name = self.get_filename_from_url(url)
-            file_path = os.path.join(self.output_dir, file_name)
+    def download(self, url, file_path=None, output_path=None, filename=None, progress_callback=None):
+        """
+        创建并启动一个下载任务
+        
+        Args:
+            url: 下载链接
+            file_path: 完整的文件保存路径
+            output_path: 文件保存目录，与filename一起使用
+            filename: 文件名称，与output_path一起使用
+            progress_callback: 进度回调函数
+            
+        Returns:
+            DownloadTask 实例
+        """
+        if (file_path is None):
+            if (output_path and filename):
+                # 使用提供的output_path和filename
+                file_path = os.path.join(output_path, filename)
+            else:
+                # 获取更好的文件名
+                file_name = self.get_filename_from_url(url)
+                file_path = os.path.join(self.output_dir, file_name)
 
-        task = DownloadTask(url, file_path)
+        task = DownloadTask(url, file_path=file_path)
+        # 传递回调列表给任务，以便在完成或错误情况下使用
+        task._completion_callbacks = self._completion_callbacks
         self.tasks.append(task)
-        return task.start(progress_callback)
+        # 传递引擎的进度回调给任务
+        combined_progress_callback = self._create_combined_progress_callback(progress_callback)
+        return task.start(combined_progress_callback) # 使用组合的回调
+
+    def _create_combined_progress_callback(self, task_specific_callback):
+        """创建一个结合了引擎全局回调和任务特定回调的函数"""
+        def combined_callback(downloaded, total):
+            # 调用引擎的全局进度回调
+            for engine_callback in self._progress_callbacks:
+                try:
+                    engine_callback(downloaded, total)
+                except Exception as e:
+                    logger.error(f"引擎进度回调错误: {e}")
+            # 调用任务特定的进度回调
+            if (task_specific_callback):
+                try:
+                    task_specific_callback(downloaded, total)
+                except Exception as e:
+                    logger.error(f"任务进度回调错误: {e}")
+        return combined_callback
 
     def get_filename_from_url(self, url: str) -> str:
         """从URL获取更好的文件名"""
@@ -384,10 +441,10 @@ class DownloadEngine:
         ):
             # 从URL中提取模型ID
             model_id = None
-            if "/models/" in url:
+            if ("/models/" in url):
                 model_id = url.split("/models/")[-1].split("/")[0].split("?")[0]
 
-            if model_id and model_id.isdigit():
+            if (model_id and model_id.isdigit()):
                 base_filename = f"model_{model_id}.safetensors"
             else:
                 # 生成通用文件名
@@ -397,7 +454,7 @@ class DownloadEngine:
                 base_filename = f"download_{hash_obj.hexdigest()[:8]}.safetensors"
 
         # 如果没有扩展名，添加默认扩展名
-        if "." not in base_filename:
+        if ("." not in base_filename):
             base_filename += ".safetensors"
 
         return base_filename
@@ -427,11 +484,11 @@ class DownloadEngine:
         """等待所有下载任务完成"""
         start_time = time.time()
         for task in self.tasks:
-            if timeout:
+            if (timeout):
                 elapsed = time.time() - start_time
-                if elapsed >= timeout:
+                if (elapsed >= timeout):
                     break
-                task_timeout = timeout - elapsed if timeout > elapsed else 0
+                task_timeout = timeout - elapsed if (timeout > elapsed) else 0
             else:
                 task_timeout = None
 
