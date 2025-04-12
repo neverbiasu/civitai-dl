@@ -6,16 +6,18 @@ from typing import Optional
 
 from civitai_dl import __version__
 from civitai_dl.cli.commands.download import download
+from civitai_dl.utils.logger import get_logger
 
-# 导入其他命令组...
+logger = get_logger(__name__)
 
 
 @click.group()
 @click.version_option(version=__version__)
 @click.option("--verbose", "-v", count=True, help="增加详细程度")
 @click.option("--quiet", "-q", is_flag=True, help="静默模式")
-def cli():
+def cli(verbose=0, quiet=False):
     """Civitai Downloader - 下载和管理Civitai资源"""
+    # 这里可以添加日志级别设置逻辑
 
 
 # 注册命令组
@@ -36,22 +38,6 @@ def webui():
         click.echo(f"启动WebUI失败: {str(e)}", err=True)
         click.echo("请确保已安装所有必要的依赖(gradio)", err=True)
         sys.exit(1)
-
-
-@cli.group()
-def download():
-    """下载模型和图像"""
-
-
-@download.command("model")
-@click.argument("model_id", type=int)
-@click.option("--version", "-v", type=int, help="版本ID")
-@click.option("--output", "-o", help="输出路径")
-def download_model(model_id: int, version: Optional[int], output: Optional[str]):
-    """下载指定ID的模型"""
-    click.echo(f"下载模型 {model_id} {'(版本 ' + str(version) + ')' if version else ''}")
-    # 这里将实现实际的下载逻辑
-    click.echo("下载功能正在开发中...")
 
 
 @cli.group()
