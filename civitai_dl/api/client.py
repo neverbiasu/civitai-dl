@@ -346,17 +346,17 @@ class CivitaiAPI:
     def get_version_images(self, version_id: int) -> List[Dict[str, Any]]:
         """
         获取模型版本的示例图像
-        
+
         Args:
             version_id: 版本ID
-            
+
         Returns:
             包含图像对象的列表
         """
         try:
             # 获取模型版本信息
             version_info = self.get(f"model-versions/{version_id}")
-            
+
             # 提取图像列表
             if version_info and "images" in version_info:
                 logger.debug(f"从版本信息中获取到 {len(version_info['images'])} 张图像")
@@ -471,14 +471,14 @@ class CivitaiAPI:
     def get_model_images(self, model_id, version_id=None, limit=20, nsfw=False, cursor=None):
         """
         获取模型的示例图像
-        
+
         Args:
             model_id: 模型ID
             version_id: 版本ID (可选)
             limit: 结果数量限制 (默认20)
             nsfw: 是否包含NSFW内容 (默认False)
             cursor: 用于分页的游标
-            
+
         Returns:
             包含图像对象的列表
         """
@@ -487,53 +487,53 @@ class CivitaiAPI:
             "modelId": model_id,
             "limit": min(limit, 50)  # API限制每页最多50个结果
         }
-        
+
         if version_id:
             params["modelVersionId"] = version_id
-            
+
         if nsfw:
             params["nsfw"] = "true"
-            
+
         if cursor:
             params["cursor"] = cursor
-            
+
         # 打印完整的请求URL和参数用于调试
         final_url = f"{self.base_url}/images"
         logger.debug(f"请求URL: {final_url}")
         logger.debug(f"请求参数: {params}")
-        
+
         try:
             # 使用标准的GET方法获取图像
             result = self.get("images", params=params)
-            
+
             # 检查返回的结果结构
             if "items" not in result:
                 logger.warning(f"API返回数据格式不符预期，缺少'items'字段: {result}")
                 return []
-                
+
             # 处理分页结果
             images = result.get("items", [])
             metadata = result.get("metadata", {})
             total_count = metadata.get("totalItems", 0)
             next_cursor = metadata.get("nextCursor")
-            
+
             logger.debug(f"API返回 {len(images)} 个图像, 总计: {total_count}")
-            
+
             # 如果有下一页且未达到限制，继续获取
             if next_cursor and len(images) < limit:
                 next_limit = limit - len(images)
                 logger.debug(f"获取下一页，游标: {next_cursor}, 剩余限制: {next_limit}")
                 next_page = self.get_model_images(
-                    model_id, version_id, 
-                    next_limit, 
-                    nsfw, 
+                    model_id, version_id,
+                    next_limit,
+                    nsfw,
                     next_cursor
                 )
                 images.extend(next_page)
-                
+
             # 确保不超过请求的数量限制
             return images[:limit]
-            
+
         except Exception as e:
             logger.error(f"获取模型图像时出错: {str(e)}")
             # 返回空列表而不是抛出异常，以便调用方可以处理
@@ -548,20 +548,20 @@ class CivitaiAPI:
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         return headers
-        
+
     def _request(self, method: str, url: str, params=None, data=None) -> Any:
         """
         发送API请求
-        
+
         Args:
             method: 请求方法(GET, POST等)
             url: 请求URL
             params: URL查询参数
             data: 请求数据
-            
+
         Returns:
             API响应的JSON数据
-            
+
         Raises:
             Exception: 请求失败时抛出异常
         """
@@ -576,13 +576,13 @@ class CivitaiAPI:
                     json=data,
                     timeout=self.timeout
                 )
-                
+
                 # 检查HTTP错误
                 response.raise_for_status()
-                
+
                 # 解析JSON响应
                 return response.json()
-                
+
             except requests.exceptions.RequestException as e:
                 if attempt < self.max_retries:
                     # 计算重试延迟(指数退避)

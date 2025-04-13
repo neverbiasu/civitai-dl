@@ -36,7 +36,7 @@ _config: Optional[Dict[str, Any]] = None
 def get_config() -> Dict[str, Any]:
     """
     获取配置，如果尚未加载则从文件加载
-    
+
     Returns:
         配置字典
     """
@@ -49,12 +49,12 @@ def get_config() -> Dict[str, Any]:
 def load_config() -> Dict[str, Any]:
     """
     从文件加载配置
-    
+
     Returns:
         配置字典
     """
     config = DEFAULT_CONFIG.copy()
-    
+
     # 尝试从配置文件加载
     try:
         if os.path.exists(DEFAULT_CONFIG_PATH):
@@ -64,7 +64,7 @@ def load_config() -> Dict[str, Any]:
                 logger.debug(f"从 {DEFAULT_CONFIG_PATH} 加载配置")
     except Exception as e:
         logger.error(f"加载配置文件失败: {str(e)}，将使用默认配置")
-    
+
     # 从环境变量加载配置
     for key in DEFAULT_CONFIG:
         env_key = f"CIVITAI_DL_{key.upper()}"
@@ -82,32 +82,32 @@ def load_config() -> Dict[str, Any]:
                 config[key] = float(value)
             else:
                 config[key] = value
-                
+
     return config
 
 
 def save_config(config: Dict[str, Any]) -> bool:
     """
     保存配置到文件
-    
+
     Args:
         config: 配置字典
-        
+
     Returns:
         保存是否成功
     """
     try:
         # 确保配置目录存在
         os.makedirs(os.path.dirname(DEFAULT_CONFIG_PATH), exist_ok=True)
-        
+
         # 写入配置文件
         with open(DEFAULT_CONFIG_PATH, 'w', encoding='utf-8') as f:
             json.dump(config, f, indent=2, ensure_ascii=False)
-            
+
         # 更新全局配置对象
         global _config
         _config = config.copy()
-        
+
         logger.info(f"配置已保存至 {DEFAULT_CONFIG_PATH}")
         return True
     except Exception as e:
@@ -118,19 +118,19 @@ def save_config(config: Dict[str, Any]) -> bool:
 def update_config(updates: Dict[str, Any]) -> bool:
     """
     更新部分配置项
-    
+
     Args:
         updates: 要更新的配置项字典
-        
+
     Returns:
         更新是否成功
     """
     # 获取当前配置
     config = get_config()
-    
+
     # 应用更新
     config.update(updates)
-    
+
     # 保存更新后的配置
     return save_config(config)
 
@@ -138,7 +138,7 @@ def update_config(updates: Dict[str, Any]) -> bool:
 def reset_config() -> bool:
     """
     重置配置为默认值
-    
+
     Returns:
         重置是否成功
     """

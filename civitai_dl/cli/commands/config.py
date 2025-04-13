@@ -1,7 +1,6 @@
 """配置管理命令"""
 
 import os
-import json
 import click
 from typing import Optional, Dict, Any
 
@@ -14,7 +13,6 @@ logger = get_logger(__name__)
 @click.group()
 def config():
     """管理配置选项"""
-    pass
 
 
 @config.command("get")
@@ -22,7 +20,7 @@ def config():
 def config_get(key: Optional[str]):
     """获取配置值"""
     cfg = get_config()
-    
+
     if not key:
         # 显示全部配置
         click.echo("当前配置:")
@@ -57,19 +55,19 @@ def config_set(key: str, value: str):
         for k in DEFAULT_CONFIG.keys():
             click.echo(f"  {k}")
         return
-        
+
     # 加载当前配置
     current_config = get_config()
-    
+
     # 尝试转换值为适当的类型
     typed_value = _convert_value_type(key, value, DEFAULT_CONFIG)
-    
+
     # 更新配置
     current_config[key] = typed_value
-    
+
     # 保存配置
     save_config(current_config)
-    
+
     click.secho(f"已设置 {key} = {typed_value}", fg="green")
 
 
@@ -79,27 +77,27 @@ def config_set(key: str, value: str):
 def config_reset(key: Optional[str], all: bool):
     """重置配置为默认值"""
     current_config = get_config()
-    
+
     if all:
         # 重置全部配置
         save_config(DEFAULT_CONFIG.copy())
         click.secho("已重置所有配置为默认值", fg="green")
         return
-        
+
     if not key:
         click.secho("请指定要重置的配置项，或使用 --all 重置所有配置", fg="yellow")
         return
-        
+
     if key not in DEFAULT_CONFIG:
         click.secho(f"未知配置项: {key}", fg="red")
         return
-        
+
     # 重置指定键
     current_config[key] = DEFAULT_CONFIG[key]
-    
+
     # 保存配置
     save_config(current_config)
-    
+
     click.secho(f"已重置 {key} = {DEFAULT_CONFIG[key]}", fg="green")
 
 
@@ -117,13 +115,13 @@ def config_path():
 def _convert_value_type(key: str, value: str, default_config: Dict[str, Any]) -> Any:
     """根据默认值的类型转换配置值"""
     default_value = default_config.get(key)
-    
+
     if default_value is None:
         # 如果默认值为None，尝试判断value是否为"null"/"none"
         if value.lower() in ("null", "none", ""):
             return None
         return value
-        
+
     # 根据默认值的类型进行转换
     if isinstance(default_value, bool):
         return value.lower() in ("true", "yes", "1", "y", "t")

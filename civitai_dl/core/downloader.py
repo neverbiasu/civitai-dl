@@ -24,7 +24,7 @@ class DownloadTask:
         可以通过两种方式指定保存路径:
         1. 直接使用 file_path 参数指定完整路径
         2. 使用 output_path 和 filename 参数组合指定路径
-        
+
         Args:
             url: 下载URL
             file_path: 完整的保存路径
@@ -160,7 +160,7 @@ class DownloadTask:
                         logger.info(f"从Content-Disposition更新文件名: {filename}")
             except Exception as e:
                 logger.warning(f"获取文件信息失败: {e}")
-            
+
             # 检查是否需要使用断点续传
             if self.use_range and os.path.exists(self.file_path) and os.path.getsize(self.file_path) > 0:
                 downloaded_size = os.path.getsize(self.file_path)
@@ -178,7 +178,7 @@ class DownloadTask:
                     self.url, headers=headers, stream=True, timeout=30
                 ) as response:
                     response.raise_for_status()
-                    
+
                     # 再次检查Content-Disposition
                     if ("Content-Disposition" in response.headers):
                         content_disposition = response.headers["Content-Disposition"]
@@ -236,19 +236,19 @@ class DownloadTask:
                 # 特殊处理416错误(Range Not Satisfiable)
                 if http_err.response is not None and http_err.response.status_code == 416:
                     logger.warning(f"Range请求失败(416错误)，尝试从头下载: {self.url}")
-                    
+
                     # 如果是首次遇到416错误，进行重试 - 删除现有文件并重新下载整个文件
                     if self._retry_count == 0:
                         self._retry_count += 1
-                        
+
                         # 删除可能已存在的文件(可能已损坏或不完整)
                         if os.path.exists(self.file_path):
                             os.remove(self.file_path)
-                            
+
                         # 关闭Range请求功能并重新下载
                         self.use_range = False
                         return self._download()  # 递归调用不使用Range
-                        
+
                 raise  # 如果是其他错误或已重试，则重新抛出异常
 
             self.end_time = time.time()
@@ -428,13 +428,13 @@ class DownloadEngine:
                 # 获取更好的文件名
                 file_name = self.get_filename_from_url(url)
                 file_path = os.path.join(self.output_dir, file_name)
-                
+
         # 检测是否为图像URL，如果是图像则禁用Range请求
         is_image = any(ext in url.lower() for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp', 'width='])
         if is_image:
             # 对图像URL，禁用断点续传以避免416错误
             use_range = False
-            
+
         task = DownloadTask(url, file_path=file_path, use_range=use_range)
         # 传递回调列表给任务，以便在完成或错误情况下使用
         task._completion_callbacks = self._completion_callbacks

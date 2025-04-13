@@ -28,10 +28,10 @@ def cli(verbose=0, quiet=False):
         # 确保索引不越界
         level_index = min(verbose, len(log_levels) - 1)
         log_level = log_levels[level_index]
-    
+
     # 初始化日志系统
     setup_logging(log_level)
-    
+
     # 根据日志级别输出不同的消息
     if log_level == logging.DEBUG:
         logger.debug("调试模式已启用")
