@@ -2,11 +2,13 @@
 
 import click
 import sys
+import logging
 from typing import Optional
 
 from civitai_dl import __version__
 from civitai_dl.cli.commands.download import download
-from civitai_dl.utils.logger import get_logger
+from civitai_dl.cli.commands.config import config  # 导入配置命令模块
+from civitai_dl.utils.logger import get_logger, setup_logging
 
 logger = get_logger(__name__)
 
@@ -17,11 +19,29 @@ logger = get_logger(__name__)
 @click.option("--quiet", "-q", is_flag=True, help="静默模式")
 def cli(verbose=0, quiet=False):
     """Civitai Downloader - 下载和管理Civitai资源"""
-    # 这里可以添加日志级别设置逻辑
+    # 设置日志级别
+    if quiet:
+        log_level = logging.ERROR  # 静默模式下只显示错误
+    else:
+        # 根据verbose的计数决定日志级别
+        log_levels = [logging.INFO, logging.DEBUG, logging.NOTSET]
+        # 确保索引不越界
+        level_index = min(verbose, len(log_levels) - 1)
+        log_level = log_levels[level_index]
+    
+    # 初始化日志系统
+    setup_logging(log_level)
+    
+    # 根据日志级别输出不同的消息
+    if log_level == logging.DEBUG:
+        logger.debug("调试模式已启用")
+    elif log_level == logging.INFO:
+        logger.info("详细日志模式已启用")
 
 
 # 注册命令组
 cli.add_command(download)
+cli.add_command(config)  # 注册配置命令
 # 注册其他命令组...
 
 

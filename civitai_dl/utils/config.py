@@ -19,6 +19,11 @@ DEFAULT_CONFIG = {
     "timeout": 30,  # 默认超时时间(秒)
     "max_retries": 3,  # 默认最大重试次数
     "retry_delay": 2,  # 默认重试间隔(秒)
+    "path_template": "{type}/{creator}/{name}",  # 默认路径模板
+    "extract_image_metadata": True,  # 默认提取图像元数据
+    "save_model_metadata": True,  # 默认保存模型元数据
+    "log_level": "info",  # 默认日志级别
+    "log_file": None,  # 默认不使用日志文件
 }
 
 # 配置文件路径
@@ -28,70 +33,113 @@ DEFAULT_CONFIG_PATH = os.path.expanduser("~/.civitai-dl/config.json")
 _config: Optional[Dict[str, Any]] = None
 
 
-def get_config(reload: bool = False) -> Dict[str, Any]:
-    """获取应用配置"""
+def get_config() -> Dict[str, Any]:
+    """
+    获取配置，如果尚未加载则从文件加载
+    
+    Returns:
+        配置字典
+    """
     global _config
-
-    if _config is None or reload:
+    if _config is None:
         _config = load_config()
-
     return _config
 
 
-def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
-    """加载配置文件"""
-    config_path = config_path or DEFAULT_CONFIG_PATH
-
-    # 使用默认配置作为基础
+def load_config() -> Dict[str, Any]:
+    """
+    从文件加载配置
+    
+    Returns:
+        配置字典
+    """
     config = DEFAULT_CONFIG.copy()
-
-    # 尝试读取配置文件
-    if os.path.exists(config_path):
-        try:
-            with open(config_path, "r") as f:
-                loaded_config = json.load(f)
-                config.update(loaded_config)
-                logger.debug(f"已加载配置文件: {config_path}")
-        except Exception as e:
-            logger.error(f"加载配置文件失败: {e}")
-    else:
-        logger.debug(f"配置文件不存在，使用默认配置: {config_path}")
-
-    # 检查环境变量覆盖
-    if "CIVITAI_API_KEY" in os.environ:
-        config["api_key"] = os.environ["CIVITAI_API_KEY"]
-        logger.debug("从环境变量加载了API密钥")
-
-    if "CIVITAI_PROXY" in os.environ:
-        config["proxy"] = os.environ["CIVITAI_PROXY"]
-        logger.debug("从环境变量加载了代理设置")
-
+    
+    # 尝试从配置文件加载
+    try:
+        if os.path.exists(DEFAULT_CONFIG_PATH):
+            with open(DEFAULT_CONFIG_PATH, 'r', encoding='utf-8') as f:
+                user_config = json.load(f)
+                config.update(user_config)
+                logger.debug(f"从 {DEFAULT_CONFIG_PATH} 加载配置")
+    except Exception as e:
+        logger.error(f"加载配置文件失败: {str(e)}，将使用默认配置")
+    
+    # 从环境变量加载配置
+    for key in DEFAULT_CONFIG:
+        env_key = f"CIVITAI_DL_{key.upper()}"
+        if env_key in os.environ:
+            value = os.environ[env_key]
+            # 尝试转换布尔值
+            if value.lower() in ('true', 'yes', '1'):
+                config[key] = True
+            elif value.lower() in ('false', 'no', '0'):
+                config[key] = False
+            # 尝试转换数字
+            elif value.isdigit():
+                config[key] = int(value)
+            elif value.replace('.', '', 1).isdigit():
+                config[key] = float(value)
+            else:
+                config[key] = value
+                
     return config
 
 
-def save_config(config: Dict[str, Any], config_path: Optional[str] = None) -> bool:
-    """保存配置到文件"""
-    config_path = config_path or DEFAULT_CONFIG_PATH
-
-    # 确保目录存在
-    os.makedirs(os.path.dirname(config_path), exist_ok=True)
-
+def save_config(config: Dict[str, Any]) -> bool:
+    """
+    保存配置到文件
+    
+    Args:
+        config: 配置字典
+        
+    Returns:
+        保存是否成功
+    """
     try:
-        with open(config_path, "w") as f:
-            json.dump(config, f, indent=2)
-        logger.debug(f"已保存配置到: {config_path}")
+        # 确保配置目录存在
+        os.makedirs(os.path.dirname(DEFAULT_CONFIG_PATH), exist_ok=True)
+        
+        # 写入配置文件
+        with open(DEFAULT_CONFIG_PATH, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+            
+        # 更新全局配置对象
+        global _config
+        _config = config.copy()
+        
+        logger.info(f"配置已保存至 {DEFAULT_CONFIG_PATH}")
         return True
     except Exception as e:
-        logger.error(f"保存配置失败: {e}")
+        logger.error(f"保存配置失败: {str(e)}")
         return False
 
 
-def update_config(updates: Dict[str, Any], save: bool = True) -> Dict[str, Any]:
-    """更新配置"""
+def update_config(updates: Dict[str, Any]) -> bool:
+    """
+    更新部分配置项
+    
+    Args:
+        updates: 要更新的配置项字典
+        
+    Returns:
+        更新是否成功
+    """
+    # 获取当前配置
     config = get_config()
+    
+    # 应用更新
     config.update(updates)
+    
+    # 保存更新后的配置
+    return save_config(config)
 
-    if save:
-        save_config(config)
 
-    return config
+def reset_config() -> bool:
+    """
+    重置配置为默认值
+    
+    Returns:
+        重置是否成功
+    """
+    return save_config(DEFAULT_CONFIG.copy())

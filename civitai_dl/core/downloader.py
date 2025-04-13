@@ -17,15 +17,23 @@ logger = get_logger(__name__)
 class DownloadTask:
     """表示一个下载任务"""
 
-    def __init__(self, url: str, file_path=None, output_path=None, filename=None):
+    def __init__(self, url: str, file_path=None, output_path=None, filename=None, use_range=True):
         """
         初始化下载任务
 
         可以通过两种方式指定保存路径:
         1. 直接使用 file_path 参数指定完整路径
         2. 使用 output_path 和 filename 参数组合指定路径
+        
+        Args:
+            url: 下载URL
+            file_path: 完整的保存路径
+            output_path: 保存目录
+            filename: 文件名
+            use_range: 是否启用断点续传(Range请求)
         """
         self.url = url
+        self.use_range = use_range  # 新增控制是否使用Range请求的标志
 
         # 兼容多种参数形式
         if (file_path):
@@ -54,6 +62,7 @@ class DownloadTask:
         self.end_time = None
         self.speed = 0  # 下载速度 (bytes/s)
         self._progress = 0.0  # 使用私有属性存储进度值
+        self._retry_count = 0  # 下载重试计数
 
         # 确保文件路径有合适的扩展名
         self._file_path = self._ensure_proper_extension(self._file_path, self.url)
@@ -151,76 +160,96 @@ class DownloadTask:
                         logger.info(f"从Content-Disposition更新文件名: {filename}")
             except Exception as e:
                 logger.warning(f"获取文件信息失败: {e}")
-
-            # 检查是否已有部分下载
-            if (os.path.exists(self.file_path)):
+            
+            # 检查是否需要使用断点续传
+            if self.use_range and os.path.exists(self.file_path) and os.path.getsize(self.file_path) > 0:
                 downloaded_size = os.path.getsize(self.file_path)
                 mode = "ab"  # 追加模式
                 headers["Range"] = f"bytes={downloaded_size}-"
                 self.downloaded_size = downloaded_size
+                logger.debug(f"使用断点续传, 已下载: {downloaded_size} 字节")
             else:
                 mode = "wb"
                 self.downloaded_size = 0
 
             # 发起请求
-            with requests.get(
-                self.url, headers=headers, stream=True, timeout=30
-            ) as response:
-                response.raise_for_status()
+            try:
+                with requests.get(
+                    self.url, headers=headers, stream=True, timeout=30
+                ) as response:
+                    response.raise_for_status()
+                    
+                    # 再次检查Content-Disposition
+                    if ("Content-Disposition" in response.headers):
+                        content_disposition = response.headers["Content-Disposition"]
+                        filename = self._extract_filename_from_header(content_disposition)
+                        if (filename and mode == "wb"):  # 只有在新下载时才更新文件名
+                            # 更新文件路径，保留原来的目录
+                            dir_path = os.path.dirname(self.file_path)
+                            self.file_path = os.path.join(dir_path, filename)
+                            logger.info(f"从Content-Disposition更新文件名: {filename}")
 
-                # 再次检查Content-Disposition
-                if ("Content-Disposition" in response.headers):
-                    content_disposition = response.headers["Content-Disposition"]
-                    filename = self._extract_filename_from_header(content_disposition)
-                    if (filename and mode == "wb"):  # 只有在新下载时才更新文件名
-                        # 更新文件路径，保留原来的目录
-                        dir_path = os.path.dirname(self.file_path)
-                        self.file_path = os.path.join(dir_path, filename)
-                        logger.info(f"从Content-Disposition更新文件名: {filename}")
-
-                # 获取文件总大小
-                if ("content-length" in response.headers):
-                    if (self.downloaded_size > 0):
-                        self.total_size = (
-                            int(response.headers["content-length"])
-                            + self.downloaded_size
-                        )
+                    # 获取文件总大小
+                    if ("content-length" in response.headers):
+                        if (self.downloaded_size > 0):
+                            self.total_size = (
+                                int(response.headers["content-length"])
+                                + self.downloaded_size
+                            )
+                        else:
+                            self.total_size = int(response.headers["content-length"])
                     else:
-                        self.total_size = int(response.headers["content-length"])
-                else:
-                    self.total_size = None
+                        self.total_size = None
 
-                # 写入文件
-                last_update_time = time.time()
-                bytes_since_last_update = 0
+                    # 写入文件
+                    last_update_time = time.time()
+                    bytes_since_last_update = 0
 
-                with open(self.file_path, mode) as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if (self._stop_event.is_set()):
-                            self.status = "canceled"
-                            return
+                    with open(self.file_path, mode) as f:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            if (self._stop_event.is_set()):
+                                self.status = "canceled"
+                                return
 
-                        if (chunk):
-                            f.write(chunk)
-                            chunk_size = len(chunk)
-                            self.downloaded_size += chunk_size
-                            bytes_since_last_update += chunk_size
+                            if (chunk):
+                                f.write(chunk)
+                                chunk_size = len(chunk)
+                                self.downloaded_size += chunk_size
+                                bytes_since_last_update += chunk_size
 
-                            # 计算下载速度和更新进度
-                            current_time = time.time()
-                            if (current_time - last_update_time >= 0.5):  # 每0.5秒更新一次
-                                elapsed = current_time - last_update_time
-                                if (elapsed > 0):
-                                    self.speed = bytes_since_last_update / elapsed
+                                # 计算下载速度和更新进度
+                                current_time = time.time()
+                                if (current_time - last_update_time >= 0.5):  # 每0.5秒更新一次
+                                    elapsed = current_time - last_update_time
+                                    if (elapsed > 0):
+                                        self.speed = bytes_since_last_update / elapsed
 
-                                # 调用进度回调
-                                if (self.progress_callback and self.total_size):
-                                    self.progress_callback(
-                                        self.downloaded_size, self.total_size
-                                    )
+                                    # 调用进度回调
+                                    if (self.progress_callback and self.total_size):
+                                        self.progress_callback(
+                                            self.downloaded_size, self.total_size
+                                        )
 
-                                bytes_since_last_update = 0
-                                last_update_time = current_time
+                                    bytes_since_last_update = 0
+                                    last_update_time = current_time
+            except requests.HTTPError as http_err:
+                # 特殊处理416错误(Range Not Satisfiable)
+                if http_err.response is not None and http_err.response.status_code == 416:
+                    logger.warning(f"Range请求失败(416错误)，尝试从头下载: {self.url}")
+                    
+                    # 如果是首次遇到416错误，进行重试 - 删除现有文件并重新下载整个文件
+                    if self._retry_count == 0:
+                        self._retry_count += 1
+                        
+                        # 删除可能已存在的文件(可能已损坏或不完整)
+                        if os.path.exists(self.file_path):
+                            os.remove(self.file_path)
+                            
+                        # 关闭Range请求功能并重新下载
+                        self.use_range = False
+                        return self._download()  # 递归调用不使用Range
+                        
+                raise  # 如果是其他错误或已重试，则重新抛出异常
 
             self.end_time = time.time()
             self.status = "completed"
@@ -228,7 +257,7 @@ class DownloadTask:
 
             # 最终调用一次回调确保进度显示100%
             if (self.progress_callback and self.total_size):
-                self.progress_callback(self.downloaded_size, self.total_size)
+                self.progress_callback(self.total_size, self.total_size)
 
             # 触发完成回调
             self._trigger_completion_callbacks()
@@ -376,7 +405,7 @@ class DownloadEngine:
         self.cancel_all()
         self.executor.shutdown(wait=True)
 
-    def download(self, url, file_path=None, output_path=None, filename=None, progress_callback=None):
+    def download(self, url, file_path=None, output_path=None, filename=None, progress_callback=None, use_range=True):
         """
         创建并启动一个下载任务
 
@@ -386,6 +415,7 @@ class DownloadEngine:
             output_path: 文件保存目录，与filename一起使用
             filename: 文件名称，与output_path一起使用
             progress_callback: 进度回调函数
+            use_range: 是否启用断点续传(Range请求)，对图片下载应设为False
 
         Returns:
             DownloadTask 实例
@@ -398,8 +428,14 @@ class DownloadEngine:
                 # 获取更好的文件名
                 file_name = self.get_filename_from_url(url)
                 file_path = os.path.join(self.output_dir, file_name)
-
-        task = DownloadTask(url, file_path=file_path)
+                
+        # 检测是否为图像URL，如果是图像则禁用Range请求
+        is_image = any(ext in url.lower() for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp', 'width='])
+        if is_image:
+            # 对图像URL，禁用断点续传以避免416错误
+            use_range = False
+            
+        task = DownloadTask(url, file_path=file_path, use_range=use_range)
         # 传递回调列表给任务，以便在完成或错误情况下使用
         task._completion_callbacks = self._completion_callbacks
         self.tasks.append(task)
