@@ -2,12 +2,13 @@
 测试Civitai下载引擎的核心功能
 """
 import os
-import pytest
 import tempfile
-from unittest.mock import patch, MagicMock
-import requests
-import unittest
 import threading
+import unittest
+from unittest.mock import MagicMock, patch
+
+import pytest
+import requests
 
 from civitai_dl.core.downloader import DownloadEngine, DownloadTask
 
@@ -41,9 +42,7 @@ class TestDownloadTask:
 
     def test_task_update_progress(self):
         """测试更新进度"""
-        task = DownloadTask(
-            url="https://example.com/file.zip", output_path="./downloads"
-        )
+        task = DownloadTask(url="https://example.com/file.zip", output_path="./downloads")
         task.update_progress(0.5)
         assert task.progress == 0.5
 
@@ -56,9 +55,7 @@ class TestDownloadTask:
 
     def test_task_eta(self):
         """测试预估完成时间计算"""
-        task = DownloadTask(
-            url="https://example.com/file.zip", output_path="./downloads"
-        )
+        task = DownloadTask(url="https://example.com/file.zip", output_path="./downloads")
         task.total_size = 1000
         task.downloaded_size = 500
         task.speed = 100
@@ -91,18 +88,19 @@ class TestDownloadEngine:
         assert download_engine.retry_delay == 5
 
     @patch("requests.get")
-    def test_download_file(
-        self, mock_get, download_engine, temp_download_dir
-    ):
+    def test_download_file(self, mock_get, download_engine, temp_download_dir):
         """测试文件下载功能"""
         os.path.join(temp_download_dir, "test.zip")
 
         # 配置 mock_get 以模拟成功的下载
         mock_response = MagicMock()
         mock_response.raise_for_status.return_value = None
-        mock_response.headers = {'content-length': '100', 'Content-Disposition': 'attachment; filename="test.zip"'}
+        mock_response.headers = {
+            "content-length": "100",
+            "Content-Disposition": 'attachment; filename="test.zip"',
+        }
         # 模拟 iter_content 返回数据块
-        mock_response.iter_content.return_value = [b'a' * 50, b'b' * 50]
+        mock_response.iter_content.return_value = [b"a" * 50, b"b" * 50]
         # 让 requests.get 返回这个模拟响应
         mock_get.return_value.__enter__.return_value = mock_response
 
@@ -126,9 +124,7 @@ class TestDownloadEngine:
         assert os.path.getsize(expected_final_path) == 100
 
     @patch("requests.get")
-    def test_download_error_handling(
-        self, mock_get, download_engine, temp_download_dir
-    ):
+    def test_download_error_handling(self, mock_get, download_engine, temp_download_dir):
         """测试错误处理"""
         # 模拟请求失败
         mock_get.side_effect = requests.RequestException("下载失败")

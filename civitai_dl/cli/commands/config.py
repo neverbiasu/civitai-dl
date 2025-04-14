@@ -1,10 +1,11 @@
 """配置管理命令"""
 
 import os
-import click
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
-from civitai_dl.utils.config import get_config, save_config, DEFAULT_CONFIG, CONFIG_FILE
+import click
+
+from civitai_dl.utils.config import CONFIG_FILE, DEFAULT_CONFIG, get_config, save_config
 from civitai_dl.utils.logger import get_logger
 
 logger = get_logger(__name__)

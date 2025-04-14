@@ -1,12 +1,13 @@
 """
 用于设置和验证代理的工具脚本
 """
-import os
-import sys
-import requests
-import subprocess
 import argparse
+import os
+import subprocess
+import sys
 from urllib.parse import urlparse
+
+import requests
 
 
 def detect_system_proxy():
@@ -21,18 +22,21 @@ def detect_system_proxy():
         return proxy
 
     # 在Windows上尝试获取IE代理设置
-    if sys.platform == 'win32':
+    if sys.platform == "win32":
         try:
             import winreg
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
-                                r'Software\Microsoft\Windows\CurrentVersion\Internet Settings') as key:
-                proxy_enable, _ = winreg.QueryValueEx(key, 'ProxyEnable')
+
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Internet Settings",
+            ) as key:
+                proxy_enable, _ = winreg.QueryValueEx(key, "ProxyEnable")
                 if proxy_enable:
-                    proxy_server, _ = winreg.QueryValueEx(key, 'ProxyServer')
+                    proxy_server, _ = winreg.QueryValueEx(key, "ProxyServer")
                     if proxy_server:
                         # 确保格式正确
-                        if not proxy_server.startswith('http://'):
-                            proxy_server = f'http://{proxy_server}'
+                        if not proxy_server.startswith("http://"):
+                            proxy_server = f"http://{proxy_server}"
                         print(f"检测到Windows IE代理设置: {proxy_server}")
                         return proxy_server
         except Exception as e:
@@ -40,9 +44,9 @@ def detect_system_proxy():
 
     # 尝试从工具中获取代理信息
     proxy_tools = {
-        'clash': ['clash-meta.exe', 'clash.exe', 'clash'],
-        'v2ray': ['v2ray.exe', 'v2ray'],
-        'shadowsocks': ['ss-local.exe', 'ss-local']
+        "clash": ["clash-meta.exe", "clash.exe", "clash"],
+        "v2ray": ["v2ray.exe", "v2ray"],
+        "shadowsocks": ["ss-local.exe", "ss-local"],
     }
 
     for tool_name, execs in proxy_tools.items():
@@ -51,11 +55,11 @@ def detect_system_proxy():
                 print(f"检测到{tool_name}代理工具，可能在使用默认端口")
 
                 # 对于不同的工具，尝试不同的默认端口和协议
-                if tool_name == 'clash':
+                if tool_name == "clash":
                     return "http://127.0.0.1:7890"
-                elif tool_name == 'v2ray':
+                elif tool_name == "v2ray":
                     return "socks5://127.0.0.1:1080"
-                elif tool_name == 'shadowsocks':
+                elif tool_name == "shadowsocks":
                     return "socks5://127.0.0.1:1080"
 
     return None
@@ -99,12 +103,7 @@ def test_proxy(proxy=None):
 
         # 使用代理连接测试网站
         print("测试连接到 api.ipify.org...")
-        response = requests.get(
-            "https://api.ipify.org",
-            proxies=proxies,
-            timeout=10,
-            verify=False
-        )
+        response = requests.get("https://api.ipify.org", proxies=proxies, timeout=10, verify=False)
         print(f"代理测试成功! 通过代理的公共IP地址: {response.text}")
 
         # 测试连接Civitai
@@ -113,7 +112,7 @@ def test_proxy(proxy=None):
             "https://civitai.com/api/v1/models?limit=1",
             proxies=proxies,
             timeout=15,
-            verify=False
+            verify=False,
         )
         if civitai_response.status_code == 200:
             print(f"成功连接Civitai API! 状态码: {civitai_response.status_code}")
@@ -139,7 +138,7 @@ def test_proxy(proxy=None):
                     "https://api.ipify.org",
                     proxies=socks_proxies,
                     timeout=10,
-                    verify=False
+                    verify=False,
                 )
                 print(f"SOCKS5代理测试成功! 通过代理的公共IP地址: {response.text}")
                 return socks_proxy
@@ -191,8 +190,8 @@ def set_proxy(proxy_url):
         os.environ["HTTPS_PROXY"] = proxy_url
 
         # 创建.env文件保存设置
-        env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
-        with open(env_file, 'w', encoding='utf-8') as f:
+        env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+        with open(env_file, "w", encoding="utf-8") as f:
             f.write(f"CIVITAI_PROXY={proxy_url}\n")
             f.write(f"HTTP_PROXY={proxy_url}\n")
             f.write(f"HTTPS_PROXY={proxy_url}\n")

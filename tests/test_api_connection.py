@@ -3,16 +3,16 @@
 简化版API连接测试，支持代理设置
 """
 
+import logging
 import os
 import sys
-import logging
+
 import pytest
+
 from civitai_dl.api import CivitaiAPI
 
 # 配置日志
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
 

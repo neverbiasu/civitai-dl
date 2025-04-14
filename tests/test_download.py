@@ -1,8 +1,9 @@
-from civitai_dl.core.downloader import DownloadEngine
-from civitai_dl.api import CivitaiAPI
 import os
 import sys
 import time
+
+from civitai_dl.api import CivitaiAPI
+from civitai_dl.core.downloader import DownloadEngine
 
 # 禁用所有系统代理设置
 os.environ["NO_PROXY"] = "*"
@@ -112,10 +113,7 @@ def test_api_model_download():
 
         # 使用文件的原始名称
         filename = primary_file["name"]
-        if not any(
-            filename.endswith(ext)
-            for ext in [".safetensors", ".ckpt", ".pt", ".bin", ".pth"]
-        ):
+        if not any(filename.endswith(ext) for ext in [".safetensors", ".ckpt", ".pt", ".bin", ".pth"]):
             filename += ".safetensors"  # 添加默认扩展名
 
         file_path = os.path.join(TEST_DIR, filename)

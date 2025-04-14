@@ -3,6 +3,7 @@ Mock objects for testing
 """
 import threading
 from unittest.mock import MagicMock
+
 from civitai_dl.api.client import ResourceNotFoundError
 
 
@@ -72,9 +73,7 @@ class MockCivitaiAPI:
         # 模拟特定ID的响应
         if model_id == 12345:
             # 直接抛出ResourceNotFoundError而不是HTTP错误
-            raise ResourceNotFoundError(
-                f"Resource not found: {self.base_url}/models/{model_id}"
-            )
+            raise ResourceNotFoundError(f"Resource not found: {self.base_url}/models/{model_id}")
 
         return {
             "id": model_id,
@@ -141,7 +140,5 @@ class MockCivitaiAPI:
     def _make_request(self, *args, **kwargs):
         """完全模拟的请求方法"""
         if args and len(args) > 1 and "models/12345" in args[1]:
-            raise ResourceNotFoundError(
-                f"Resource not found: {self.base_url}/{args[1]}"
-            )
+            raise ResourceNotFoundError(f"Resource not found: {self.base_url}/{args[1]}")
         return {}

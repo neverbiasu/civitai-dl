@@ -1,7 +1,7 @@
 import os
-import pytest
 import tempfile
 
+import pytest
 import requests
 
 """
@@ -15,6 +15,7 @@ def setup_environment():
     # 尝试从.env文件加载环境变量
     try:
         from civitai_dl.utils.env import load_env_file
+
         load_env_file()
     except ImportError:
         pass
@@ -101,9 +102,7 @@ def disable_proxy_for_tests():
             os.environ["HTTPS_PROXY"] = civitai_proxy
             print(f"CIVITAI_PROXY环境变量设置代理: {civitai_proxy}")
         elif original_proxy or original_https_proxy:
-            print(
-                f"使用系统代理 HTTP_PROXY={original_proxy}, HTTPS_PROXY={original_https_proxy}"
-            )
+            print(f"使用系统代理 HTTP_PROXY={original_proxy}, HTTPS_PROXY={original_https_proxy}")
 
     yield
 
@@ -148,26 +147,24 @@ def api_client():
         try:
             test_response = requests.get(
                 "https://api.ipify.org",
-                proxies={
-                    "http": proxy,
-                    "https": proxy},
+                proxies={"http": proxy, "https": proxy},
                 timeout=10,
-                verify=False)
+                verify=False,
+            )
             print(f"代理连接测试: 成功! IP: {test_response.text}")
         except Exception as e:
             print(f"代理连接测试失败: {str(e)}")
             # 如果代理测试失败，尝试不同的设置格式
-            if 'http://' in proxy:
-                alt_proxy = proxy.replace('http://', 'socks5://')
+            if "http://" in proxy:
+                alt_proxy = proxy.replace("http://", "socks5://")
                 print(f"尝试替代代理格式: {alt_proxy}")
                 try:
                     test_response = requests.get(
                         "https://api.ipify.org",
-                        proxies={
-                            "http": alt_proxy,
-                            "https": alt_proxy},
+                        proxies={"http": alt_proxy, "https": alt_proxy},
                         timeout=10,
-                        verify=False)
+                        verify=False,
+                    )
                     print(f"替代代理连接测试: 成功! IP: {test_response.text}")
                     proxy = alt_proxy  # 如果成功，使用新格式
                 except Exception as e:
@@ -180,11 +177,11 @@ def api_client():
         api_key=api_key,
         proxy=proxy,
         verify=False,  # 禁用SSL验证以避免证书问题
-        timeout=30     # 增加超时时间
+        timeout=30,  # 增加超时时间
     )
 
     # 检查client中的代理设置
-    if hasattr(client, 'session') and hasattr(client.session, 'proxies'):
+    if hasattr(client, "session") and hasattr(client.session, "proxies"):
         print(f"API客户端session代理设置: {client.session.proxies}")
 
     return client

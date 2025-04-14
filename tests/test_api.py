@@ -2,11 +2,13 @@
 测试Civitai API交互
 """
 import os
-from unittest.mock import MagicMock, patch
-import pytest
 import time
+from unittest.mock import MagicMock, patch
+
+import pytest
 import requests
-from civitai_dl.api.client import CivitaiAPI, ResourceNotFoundError, APIError
+
+from civitai_dl.api.client import APIError, CivitaiAPI, ResourceNotFoundError
 
 
 class TestCivitaiAPI:

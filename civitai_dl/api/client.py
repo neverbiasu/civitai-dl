@@ -2,10 +2,11 @@
 Civitai API 客户端
 此模块提供与Civitai API交互的全部功能
 """
-import time
 import threading
+import time
+from typing import Any, Dict, List, Optional
+
 import requests
-from typing import Dict, List, Optional, Any
 
 from civitai_dl.utils.logger import get_logger
 
@@ -152,10 +153,7 @@ class CivitaiAPI:
             # 确保代理格式正确
             if isinstance(proxy, str):
                 # 标准代理格式
-                self.session.proxies = {
-                    'http': proxy,
-                    'https': proxy
-                }
+                self.session.proxies = {"http": proxy, "https": proxy}
                 logger.info(f"使用代理: {proxy}")
             elif isinstance(proxy, dict):
                 # 如果传入的是字典格式，直接使用
@@ -468,7 +466,9 @@ class CivitaiAPI:
 
         return {}
 
-    def get_model_images(self, model_id, version_id=None, limit=20, nsfw=False, cursor=None):
+    def get_model_images(
+        self, model_id, version_id=None, limit=20, nsfw=False, cursor=None
+    ):
         """
         获取模型的示例图像
 
@@ -483,10 +483,7 @@ class CivitaiAPI:
             包含图像对象的列表
         """
         # 检查测试用于调试的参数
-        params = {
-            "modelId": model_id,
-            "limit": min(limit, 50)  # API限制每页最多50个结果
-        }
+        params = {"modelId": model_id, "limit": min(limit, 50)}  # API限制每页最多50个结果
 
         if version_id:
             params["modelVersionId"] = version_id
@@ -524,10 +521,7 @@ class CivitaiAPI:
                 next_limit = limit - len(images)
                 logger.debug(f"获取下一页，游标: {next_cursor}, 剩余限制: {next_limit}")
                 next_page = self.get_model_images(
-                    model_id, version_id,
-                    next_limit,
-                    nsfw,
-                    next_cursor
+                    model_id, version_id, next_limit, nsfw, next_cursor
                 )
                 images.extend(next_page)
 
@@ -541,10 +535,7 @@ class CivitaiAPI:
 
     def _build_headers(self) -> Dict[str, str]:
         """构建请求头"""
-        headers = {
-            "User-Agent": "Civitai-Downloader/1.0",
-            "Accept": "application/json"
-        }
+        headers = {"User-Agent": "Civitai-Downloader/1.0", "Accept": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         return headers
@@ -574,7 +565,7 @@ class CivitaiAPI:
                     url=url,
                     params=params,
                     json=data,
-                    timeout=self.timeout
+                    timeout=self.timeout,
                 )
 
                 # 检查HTTP错误
@@ -586,8 +577,10 @@ class CivitaiAPI:
             except requests.exceptions.RequestException as e:
                 if attempt < self.max_retries:
                     # 计算重试延迟(指数退避)
-                    delay = 2 ** attempt
-                    logger.warning(f"请求失败，{delay}秒后重试 ({attempt+1}/{self.max_retries}): {str(e)}")
+                    delay = 2**attempt
+                    logger.warning(
+                        f"请求失败，{delay}秒后重试 ({attempt+1}/{self.max_retries}): {str(e)}"
+                    )
                     time.sleep(delay)
                 else:
                     logger.error(f"请求在{self.max_retries}次尝试后仍然失败: {str(e)}")

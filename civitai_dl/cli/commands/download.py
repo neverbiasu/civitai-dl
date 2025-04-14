@@ -1,18 +1,18 @@
+import json
 import os
 import sys
-import click
-from typing import Optional
 import time
-import json
+from typing import Optional
 
+import click
 from more_itertools import strip
 
 from civitai_dl.api import CivitaiAPI
 from civitai_dl.core.downloader import DownloadEngine
-from civitai_dl.utils.logger import get_logger
 from civitai_dl.utils.config import get_config
-from civitai_dl.utils.path_template import apply_model_template
+from civitai_dl.utils.logger import get_logger
 from civitai_dl.utils.metadata import extract_image_metadata, save_metadata_to_json
+from civitai_dl.utils.path_template import apply_model_template
 
 logger = get_logger(__name__)
 
@@ -29,8 +29,14 @@ def download():
 @click.option("--format", "-f", help="首选文件格式")
 @click.option("--with-images", is_flag=True, help="同时下载示例图像")
 @click.option("--image-limit", type=int, default=5, help="下载的图像数量限制")
-def download_model(model_id: int, version: Optional[int], output: Optional[str],
-                   format: Optional[str], with_images: bool, image_limit: int):
+def download_model(
+    model_id: int,
+    version: Optional[int],
+    output: Optional[str],
+    format: Optional[str],
+    with_images: bool,
+    image_limit: int,
+):
     """下载指定ID的模型"""
     try:
         config = get_config()
@@ -139,7 +145,9 @@ def download_model(model_id: int, version: Optional[int], output: Optional[str],
             # 如果需要下载图像
             if with_images:
                 click.echo("开始下载模型示例图像...")
-                download_images(api, downloader, model_id, target_version["id"], image_limit, output)
+                download_images(
+                    api, downloader, model_id, target_version["id"], image_limit, output
+                )
 
             # 确保完全退出
             return
@@ -162,8 +170,14 @@ def download_model(model_id: int, version: Optional[int], output: Optional[str],
 @click.option("--output", "-o", help="输出目录")
 @click.option("--nsfw", is_flag=True, help="包含NSFW内容")
 @click.option("--gallery", is_flag=True, help="下载社区画廊图像而非模型示例图像")
-def download_images_cmd(model: Optional[int], version: Optional[int], limit: int,
-                        output: Optional[str], nsfw: bool, gallery: bool):
+def download_images_cmd(
+    model: Optional[int],
+    version: Optional[int],
+    limit: int,
+    output: Optional[str],
+    nsfw: bool,
+    gallery: bool,
+):
     """下载模型示例图像或社区画廊图像"""
     try:
         if not model and not version:
@@ -203,8 +217,14 @@ def download_images_cmd(model: Optional[int], version: Optional[int], limit: int
 @click.option("--output", "-o", help="输出目录")
 @click.option("--nsfw", is_flag=True, help="包含NSFW内容")
 @click.option("--gallery", is_flag=True, help="下载社区画廊图像而非模型示例图像")
-def download_image_cmd(model_id: int, version: Optional[int], limit: int,
-                       output: Optional[str], nsfw: bool, gallery: bool):
+def download_image_cmd(
+    model_id: int,
+    version: Optional[int],
+    limit: int,
+    output: Optional[str],
+    nsfw: bool,
+    gallery: bool,
+):
     """下载单个模型的示例图像或社区画廊图像"""
     try:
         config = get_config()
@@ -225,7 +245,9 @@ def download_image_cmd(model_id: int, version: Optional[int], limit: int,
         )
 
         # 直接使用模型ID参数
-        download_images(api, downloader, model_id, version, limit, output, nsfw, gallery)
+        download_images(
+            api, downloader, model_id, version, limit, output, nsfw, gallery
+        )
 
     except Exception as e:
         click.secho(f"下载图像过程中出错: {str(e)}", fg="red")
@@ -241,9 +263,15 @@ def download_image_cmd(model_id: int, version: Optional[int], limit: int,
 @click.option("--concurrent", "-c", type=int, default=2, help="并行下载数量")
 @click.option("--template", "-t", help="输出路径模板")
 @click.option("--save-metadata", is_flag=True, default=True, help="保存模型元数据")
-def download_models(ids: Optional[str], from_file: Optional[str], output: Optional[str],
-                    format: Optional[str], concurrent: int, template: Optional[str],
-                    save_metadata: bool):
+def download_models(
+    ids: Optional[str],
+    from_file: Optional[str],
+    output: Optional[str],
+    format: Optional[str],
+    concurrent: int,
+    template: Optional[str],
+    save_metadata: bool,
+):
     """批量下载多个模型"""
     model_ids = []
 
@@ -254,7 +282,7 @@ def download_models(ids: Optional[str], from_file: Optional[str], output: Option
     # 从文件获取ID列表
     if from_file:
         try:
-            with open(from_file, 'r') as f:
+            with open(from_file, "r") as f:
                 for line in f:
                     line = strip()
                     if line.isdigit():
@@ -303,8 +331,9 @@ def download_models(ids: Optional[str], from_file: Optional[str], output: Option
                 output=output,
                 format=format,
                 path_template=path_template,
-                save_metadata=save_metadata
-            ): model_id for model_id in model_ids
+                save_metadata=save_metadata,
+            ): model_id
+            for model_id in model_ids
         }
 
         # 处理完成的任务
@@ -315,41 +344,41 @@ def download_models(ids: Optional[str], from_file: Optional[str], output: Option
                 if result["status"] == "success":
                     success_count += 1
                     click.secho(
-                        f"模型 {model_id} 下载成功: {result['file_path']}",
-                        fg="green"
+                        f"模型 {model_id} 下载成功: {result['file_path']}", fg="green"
                     )
                 else:
                     failed_count += 1
-                    click.secho(
-                        f"模型 {model_id} 下载失败: {result['error']}",
-                        fg="red"
-                    )
+                    click.secho(f"模型 {model_id} 下载失败: {result['error']}", fg="red")
                 # 记录结果
                 download_results.append(result)
             except Exception as e:
                 failed_count += 1
-                click.secho(
-                    f"模型 {model_id} 下载过程中出错: {str(e)}",
-                    fg="red"
+                click.secho(f"模型 {model_id} 下载过程中出错: {str(e)}", fg="red")
+                download_results.append(
+                    {"model_id": model_id, "status": "failed", "error": str(e)}
                 )
-                download_results.append({
-                    "model_id": model_id,
-                    "status": "failed",
-                    "error": str(e)
-                })
 
             # 显示进度
             total_done = success_count + failed_count
-            click.echo(f"进度: {total_done}/{len(model_ids)} "
-                       f"(成功: {success_count}, 失败: {failed_count})")
+            click.echo(
+                f"进度: {total_done}/{len(model_ids)} "
+                f"(成功: {success_count}, 失败: {failed_count})"
+            )
 
     # 显示总结
     click.echo("\n下载完成!")
     click.echo(f"总计: {len(model_ids)} 模型, 成功: {success_count}, 失败: {failed_count}")
 
 
-def download_model_with_metadata(api, model_id, version_id=None, output=None,
-                                 format=None, path_template=None, save_metadata=True):
+def download_model_with_metadata(
+    api,
+    model_id,
+    version_id=None,
+    output=None,
+    format=None,
+    path_template=None,
+    save_metadata=True,
+):
     """下载模型并保存元数据的工作函数"""
     try:
         config = get_config()
@@ -358,20 +387,12 @@ def download_model_with_metadata(api, model_id, version_id=None, output=None,
         # 获取模型信息
         model_info = api.get_model(model_id)
         if not model_info:
-            return {
-                "model_id": model_id,
-                "status": "failed",
-                "error": "模型不存在或无法获取模型信息"
-            }
+            return {"model_id": model_id, "status": "failed", "error": "模型不存在或无法获取模型信息"}
 
         # 确定版本
         versions = model_info.get("modelVersions", [])
         if not versions:
-            return {
-                "model_id": model_id,
-                "status": "failed",
-                "error": "模型没有可用版本"
-            }
+            return {"model_id": model_id, "status": "failed", "error": "模型没有可用版本"}
 
         target_version = None
         if version_id:
@@ -386,17 +407,13 @@ def download_model_with_metadata(api, model_id, version_id=None, output=None,
             return {
                 "model_id": model_id,
                 "status": "failed",
-                "error": f"找不到指定的版本ID: {version_id}"
+                "error": f"找不到指定的版本ID: {version_id}",
             }
 
         # 获取文件
         files = target_version.get("files", [])
         if not files:
-            return {
-                "model_id": model_id,
-                "status": "failed",
-                "error": "版本没有可用文件"
-            }
+            return {"model_id": model_id, "status": "failed", "error": "版本没有可用文件"}
 
         # 选择文件格式
         target_file = None
@@ -412,10 +429,7 @@ def download_model_with_metadata(api, model_id, version_id=None, output=None,
         if path_template:
             # 使用模板生成相对路径
             relative_path = apply_model_template(
-                path_template,
-                model_info,
-                target_version,
-                target_file
+                path_template, model_info, target_version, target_file
             )
             # 组合完整路径
             model_dir = os.path.join(output_dir, relative_path)
@@ -434,8 +448,7 @@ def download_model_with_metadata(api, model_id, version_id=None, output=None,
 
         # 执行下载
         download_task = downloader.download(
-            url=target_file["downloadUrl"],
-            file_path=file_path
+            url=target_file["downloadUrl"], file_path=file_path
         )
 
         # 等待下载完成
@@ -445,7 +458,7 @@ def download_model_with_metadata(api, model_id, version_id=None, output=None,
             return {
                 "model_id": model_id,
                 "status": "failed",
-                "error": download_task.error or "下载失败"
+                "error": download_task.error or "下载失败",
             }
 
         # 保存模型元数据
@@ -470,13 +483,13 @@ def download_model_with_metadata(api, model_id, version_id=None, output=None,
                     "name": target_file.get("name"),
                     "size": target_file.get("sizeKB"),
                     "metadata": target_file.get("metadata"),
-                    "hashes": target_file.get("hashes", {})
-                }
+                    "hashes": target_file.get("hashes", {}),
+                },
             }
 
             # 保存元数据JSON
             metadata_path = os.path.splitext(file_path)[0] + ".meta.json"
-            with open(metadata_path, 'w', encoding='utf-8') as f:
+            with open(metadata_path, "w", encoding="utf-8") as f:
                 json.dump(metadata, f, indent=2, ensure_ascii=False)
 
         # 返回下载结果
@@ -487,21 +500,25 @@ def download_model_with_metadata(api, model_id, version_id=None, output=None,
             "model_info": {
                 "name": model_info.get("name"),
                 "type": model_info.get("type"),
-                "version": target_version.get("name")
-            }
+                "version": target_version.get("name"),
+            },
         }
 
     except Exception as e:
         logger.exception(f"下载模型 {model_id} 时出错")
-        return {
-            "model_id": model_id,
-            "status": "failed",
-            "error": str(e)
-        }
+        return {"model_id": model_id, "status": "failed", "error": str(e)}
 
 
-def download_images(api, downloader, model_id, version_id=None, limit=10,
-                    output_dir=None, include_nsfw=False, gallery=False):
+def download_images(
+    api,
+    downloader,
+    model_id,
+    version_id=None,
+    limit=10,
+    output_dir=None,
+    include_nsfw=False,
+    gallery=False,
+):
     """下载模型示例图像或社区画廊图像的实现"""
     try:
         # 获取模型图像
@@ -515,7 +532,9 @@ def download_images(api, downloader, model_id, version_id=None, limit=10,
             try:
                 model_info = api.get_model(model_id)
                 if model_info:
-                    click.echo(f"✓ 已验证模型: {model_info.get('name', 'Unknown')} (ID: {model_id})")
+                    click.echo(
+                        f"✓ 已验证模型: {model_info.get('name', 'Unknown')} (ID: {model_id})"
+                    )
                     click.echo(f"模型类型: {model_info.get('type', 'Unknown')}")
                     versions = model_info.get("modelVersions", [])
                 else:
@@ -528,7 +547,9 @@ def download_images(api, downloader, model_id, version_id=None, limit=10,
             try:
                 version_info = api.get_model_version(version_id)
                 if version_info:
-                    click.echo(f"✓ 已验证版本: {version_info.get('name', 'Unknown')} (ID: {version_id})")
+                    click.echo(
+                        f"✓ 已验证版本: {version_info.get('name', 'Unknown')} (ID: {version_id})"
+                    )
                     # 如果需要但没有模型ID，从版本信息中获取
                     if not model_id and version_info.get("modelId"):
                         model_id = version_info.get("modelId")
@@ -561,7 +582,9 @@ def download_images(api, downloader, model_id, version_id=None, limit=10,
         # 根据gallery标志决定获取哪种图像
         if gallery:
             # 社区画廊图像
-            click.echo(f"获取社区画廊图像, 参数: modelId={model_id}, versionId={version_id}, limit={limit}, nsfw={include_nsfw}")
+            click.echo(
+                f"获取社区画廊图像, 参数: modelId={model_id}, versionId={version_id}, limit={limit}, nsfw={include_nsfw}"
+            )
             images = api.get_model_images(model_id, version_id, limit, include_nsfw)
         else:
             # 模型示例图像 - 集合所有版本的图片
@@ -576,7 +599,9 @@ def download_images(api, downloader, model_id, version_id=None, limit=10,
                 version_images = api.get_version_images(v_id)
                 if version_images:
                     # 计算要取的图片数量，确保不超过总限制
-                    per_version_limit = min(len(version_images), total_limit - image_count)
+                    per_version_limit = min(
+                        len(version_images), total_limit - image_count
+                    )
                     images.extend(version_images[:per_version_limit])
                     image_count += per_version_limit
                     click.echo(f"获取到 {per_version_limit} 张图像")
@@ -633,7 +658,7 @@ def download_images(api, downloader, model_id, version_id=None, limit=10,
 
         # 下载图像并显示进度
         total_downloaded = 0
-        with click.progressbar(length=len(images), label='下载图像') as bar:
+        with click.progressbar(length=len(images), label="下载图像") as bar:
             for i, image in enumerate(images):
                 # 获取图像URL
                 image_url = image.get("url")
@@ -652,7 +677,7 @@ def download_images(api, downloader, model_id, version_id=None, limit=10,
                         url=image_url,
                         output_path=model_images_dir,
                         filename=filename,
-                        use_range=False  # 显式禁用断点续传，避免416错误
+                        use_range=False,  # 显式禁用断点续传，避免416错误
                     )
 
                     # 等待下载完成
@@ -666,19 +691,23 @@ def download_images(api, downloader, model_id, version_id=None, limit=10,
                             metadata = extract_image_metadata(image_path)
                             if metadata:
                                 # 添加来自API的元数据
-                                metadata.update({
-                                    "id": image.get("id"),
-                                    "model_id": model_id,
-                                    "version_id": version_id,
-                                    "nsfw": image.get("nsfw", False),
-                                    "width": image.get("width"),
-                                    "height": image.get("height"),
-                                    "hash": image.get("hash"),
-                                    "meta": image.get("meta")
-                                })
+                                metadata.update(
+                                    {
+                                        "id": image.get("id"),
+                                        "model_id": model_id,
+                                        "version_id": version_id,
+                                        "nsfw": image.get("nsfw", False),
+                                        "width": image.get("width"),
+                                        "height": image.get("height"),
+                                        "hash": image.get("hash"),
+                                        "meta": image.get("meta"),
+                                    }
+                                )
 
                                 # 保存元数据
-                                metadata_path = os.path.splitext(image_path)[0] + ".meta.json"
+                                metadata_path = (
+                                    os.path.splitext(image_path)[0] + ".meta.json"
+                                )
                                 save_metadata_to_json(metadata, metadata_path)
                         except Exception as e:
                             logger.warning(f"提取图像元数据失败: {str(e)}")

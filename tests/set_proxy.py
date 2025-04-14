@@ -1,10 +1,11 @@
 """
 用于设置和验证代理的工具脚本
 """
+import argparse
 import os
 import sys
+
 import requests
-import argparse
 
 
 def test_proxy(proxy=None):
@@ -22,7 +23,7 @@ def test_proxy(proxy=None):
             "https://api.ipify.org",
             proxies={"http": proxy, "https": proxy},
             timeout=10,
-            verify=False
+            verify=False,
         )
         print(f"代理测试成功! 通过代理的公共IP地址: {response.text}")
 
@@ -32,7 +33,7 @@ def test_proxy(proxy=None):
             "https://civitai.com/api/v1/models?limit=1",
             proxies={"http": proxy, "https": proxy},
             timeout=15,
-            verify=False
+            verify=False,
         )
         if civitai_response.status_code == 200:
             print(f"成功连接Civitai API! 状态码: {civitai_response.status_code}")

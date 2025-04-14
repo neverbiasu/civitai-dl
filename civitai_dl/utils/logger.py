@@ -1,8 +1,8 @@
 """日志工具模块"""
 
-import os
 import logging
 import logging.handlers
+import os
 import sys
 from typing import Optional
 
@@ -25,10 +25,12 @@ DEFAULT_LOG_LEVEL = logging.INFO
 _initialized = False
 
 
-def setup_logging(level: int = DEFAULT_LOG_LEVEL,
-                  log_file: Optional[str] = None,
-                  max_bytes: int = 10485760,  # 10MB
-                  backup_count: int = 3) -> None:
+def setup_logging(
+    level: int = DEFAULT_LOG_LEVEL,
+    log_file: Optional[str] = None,
+    max_bytes: int = 10485760,  # 10MB
+    backup_count: int = 3,
+) -> None:
     """
     初始化日志系统
 
@@ -63,10 +65,7 @@ def setup_logging(level: int = DEFAULT_LOG_LEVEL,
 
         # 创建轮换日志文件处理器
         file_handler = logging.handlers.RotatingFileHandler(
-            log_file,
-            maxBytes=max_bytes,
-            backupCount=backup_count,
-            encoding='utf-8'
+            log_file, maxBytes=max_bytes, backupCount=backup_count, encoding="utf-8"
         )
         file_handler.setFormatter(logging.Formatter(LOG_FORMAT))
         root_logger.addHandler(file_handler)
