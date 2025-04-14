@@ -5,3 +5,4 @@ exclude =
     __pycache__,
     build,
     dist
+    civitai_dl/webui/app.py
