@@ -4,7 +4,7 @@ import os
 import click
 from typing import Optional, Dict, Any
 
-from civitai_dl.utils.config import get_config, save_config, DEFAULT_CONFIG, DEFAULT_CONFIG_PATH
+from civitai_dl.utils.config import get_config, save_config, DEFAULT_CONFIG, CONFIG_FILE
 from civitai_dl.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -104,10 +104,10 @@ def config_reset(key: Optional[str], all: bool):
 @config.command("path")
 def config_path():
     """显示配置文件路径"""
-    click.echo(f"配置文件位置: {DEFAULT_CONFIG_PATH}")
-    if os.path.exists(DEFAULT_CONFIG_PATH):
-        click.echo(f"文件大小: {os.path.getsize(DEFAULT_CONFIG_PATH)} 字节")
-        click.echo(f"修改时间: {os.path.getmtime(DEFAULT_CONFIG_PATH)}")
+    click.echo(f"配置文件位置: {CONFIG_FILE}")
+    if os.path.exists(CONFIG_FILE):
+        click.echo(f"文件大小: {os.path.getsize(CONFIG_FILE)} 字节")
+        click.echo(f"修改时间: {os.path.getmtime(CONFIG_FILE)}")
     else:
         click.echo("配置文件尚未创建")
 

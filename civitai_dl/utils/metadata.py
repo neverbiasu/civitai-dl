@@ -4,7 +4,7 @@ import os
 import json
 import re
 from typing import Optional, Dict, Any
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 import piexif
 
 from civitai_dl.utils.logger import get_logger
@@ -22,22 +22,41 @@ def extract_image_metadata(image_path: str) -> Optional[Dict[str, Any]]:
     Returns:
         包含元数据的字典，如果提取失败则返回None
     """
+    metadata = {}
+    
     try:
         if not os.path.exists(image_path):
             logger.error(f"文件不存在: {image_path}")
             return None
 
-        # 打开图像文件
+        # 尝试打开图像文件
         with Image.open(image_path) as img:
-            # 尝试从EXIF数据中提取
-            exif_data = extract_from_exif(img)
+            # 基本图像信息
+            metadata["format"] = img.format
+            metadata["mode"] = img.mode
+            metadata["width"] = img.width
+            metadata["height"] = img.height
+            
+            # 尝试读取EXIF数据
+            exif_data = {}
+            if hasattr(img, '_getexif') and callable(img._getexif):
+                exif = img._getexif()
+                if exif:
+                    for tag_id, value in exif.items():
+                        tag_name = EXIF_TAGS.get(tag_id, tag_id)
+                        exif_data[tag_name] = value
+            
             if exif_data:
-                return exif_data
-
-            # 尝试从PNG文本块中提取
-            png_data = extract_from_png(img)
-            if png_data:
-                return png_data
+                metadata["exif"] = exif_data
+            
+            # 检查是否有PNG文本信息
+            if img.format == "PNG" and hasattr(img, 'text') and img.text:
+                metadata["png_text"] = img.text
+            
+            # 尝试从PNG文本或EXIF中提取生成参数
+            parameters = extract_generation_parameters(img)
+            if parameters:
+                metadata["generation_parameters"] = parameters
 
         # 如果前面的方法都失败了，尝试从文件名提取信息
         filename_data = extract_from_filename(os.path.basename(image_path))
@@ -45,11 +64,14 @@ def extract_image_metadata(image_path: str) -> Optional[Dict[str, Any]]:
             return filename_data
 
         logger.warning(f"未能从图像中提取元数据: {image_path}")
-        return None
+        return metadata
 
+    except UnidentifiedImageError:
+        metadata["error"] = "无法识别的图像格式"
     except Exception as e:
-        logger.error(f"提取图像元数据时出错: {str(e)}")
-        return None
+        metadata["error"] = str(e)
+    
+    return metadata
 
 
 def extract_from_exif(img) -> Optional[Dict[str, Any]]:
@@ -142,6 +164,69 @@ def parse_generation_parameters(text: str) -> Dict[str, Any]:
     return result
 
 
+def extract_generation_parameters(img) -> Optional[Dict[str, Any]]:
+    """
+    从图像中提取生成参数
+    
+    Args:
+        img: PIL Image对象
+        
+    Returns:
+        生成参数字典或None
+    """
+    parameters = {}
+    
+    # 尝试从PNG文本中提取
+    if hasattr(img, 'text') and img.text:
+        # 检查常见的参数键
+        for key in ['parameters', 'prompt', 'negative_prompt', 'seed', 'steps']:
+            if key in img.text:
+                parameters[key] = img.text[key]
+        
+        # 特殊处理Automatic1111参数格式
+        if 'parameters' in img.text:
+            params_text = img.text['parameters']
+            # 尝试解析常见的参数格式
+            try:
+                # 提取提示词
+                prompt_match = re.search(r'^(.*?)(?:Negative prompt:|Steps:)', params_text, re.DOTALL)
+                if prompt_match:
+                    parameters['prompt'] = prompt_match.group(1).strip()
+                
+                # 提取负向提示词
+                neg_match = re.search(r'Negative prompt:(.*?)(?:Steps:|$)', params_text, re.DOTALL)
+                if neg_match:
+                    parameters['negative_prompt'] = neg_match.group(1).strip()
+                
+                # 提取其他参数
+                steps_match = re.search(r'Steps: (\d+)', params_text)
+                if steps_match:
+                    parameters['steps'] = int(steps_match.group(1))
+                
+                sampler_match = re.search(r'Sampler: ([^,]+)', params_text)
+                if sampler_match:
+                    parameters['sampler'] = sampler_match.group(1).strip()
+                
+                cfg_match = re.search(r'CFG scale: ([0-9.]+)', params_text)
+                if cfg_match:
+                    parameters['cfg_scale'] = float(cfg_match.group(1))
+                
+                seed_match = re.search(r'Seed: (\d+)', params_text)
+                if seed_match:
+                    parameters['seed'] = int(seed_match.group(1))
+                
+                model_match = re.search(r'Model: ([^,]+)', params_text)
+                if model_match:
+                    parameters['model'] = model_match.group(1).strip()
+            
+            except Exception:
+                # 如果解析失败，保留原始文本
+                if not parameters.get('prompt'):
+                    parameters['raw_parameters'] = params_text
+    
+    return parameters if parameters else None
+
+
 def save_metadata_to_json(metadata: Dict[str, Any], output_path: str) -> bool:
     """
     将元数据保存为JSON文件
@@ -165,3 +250,19 @@ def save_metadata_to_json(metadata: Dict[str, Any], output_path: str) -> bool:
     except Exception as e:
         logger.error(f"保存元数据失败: {str(e)}")
         return False
+
+
+# EXIF标签映射
+EXIF_TAGS = {
+    0x010E: "ImageDescription",
+    0x010F: "Make",
+    0x0110: "Model",
+    0x0112: "Orientation",
+    0x8769: "ExifOffset",
+    0x9000: "ExifVersion",
+    0x9003: "DateTimeOriginal",
+    0x9004: "DateTimeDigitized",
+    0x9291: "SubSecTimeOriginal",
+    0x9292: "SubSecTimeDigitized",
+    # 更多EXIF标签...
+}

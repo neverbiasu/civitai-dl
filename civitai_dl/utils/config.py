@@ -1,42 +1,39 @@
 import os
 import json
-from typing import Dict, Any, Optional
+import logging
+from pathlib import Path
+from typing import Dict, Any, Optional, Union
 
-from civitai_dl.utils.logger import get_logger
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 # 默认配置
 DEFAULT_CONFIG = {
-    "api_key": None,
+    "api_key": "",
     "output_dir": "./downloads",
     "concurrent_downloads": 3,
-    "nsfw_level": "None",
-    "auto_extract_metadata": True,
-    "default_model_format": None,
-    "proxy": None,  # 默认不使用代理
-    "verify_ssl": True,  # 默认验证SSL证书
-    "timeout": 30,  # 默认超时时间(秒)
-    "max_retries": 3,  # 默认最大重试次数
-    "retry_delay": 2,  # 默认重试间隔(秒)
-    "path_template": "{type}/{creator}/{name}",  # 默认路径模板
-    "extract_image_metadata": True,  # 默认提取图像元数据
-    "save_model_metadata": True,  # 默认保存模型元数据
-    "log_level": "info",  # 默认日志级别
-    "log_file": None,  # 默认不使用日志文件
+    "chunk_size": 8192,
+    "timeout": 30,
+    "max_retries": 3,
+    "verify_ssl": True,
+    "path_template": "{type}/{creator}/{name}",
+    "image_path_template": "images/{model_id}/{image_id}",
+    "proxy": "",
+    "save_metadata": True,
+    "theme": "light",
+    "nsfw_filter": "exclude",  # options: exclude, include, only
 }
 
 # 配置文件路径
-DEFAULT_CONFIG_PATH = os.path.expanduser("~/.civitai-dl/config.json")
+CONFIG_FILE = os.path.expanduser("~/.civitai-dl/config.json")
 
 # 全局配置对象
-_config: Optional[Dict[str, Any]] = None
+_config = None
 
 
 def get_config() -> Dict[str, Any]:
     """
-    获取配置，如果尚未加载则从文件加载
-
+    获取配置，如果尚未加载，则从文件加载
+    
     Returns:
         配置字典
     """
@@ -49,97 +46,132 @@ def get_config() -> Dict[str, Any]:
 def load_config() -> Dict[str, Any]:
     """
     从文件加载配置
-
+    
     Returns:
         配置字典
     """
-    config = DEFAULT_CONFIG.copy()
-
-    # 尝试从配置文件加载
+    # 确保配置目录存在
+    config_dir = os.path.dirname(CONFIG_FILE)
+    os.makedirs(config_dir, exist_ok=True)
+    
+    # 如果配置文件不存在，创建默认配置
+    if not os.path.exists(CONFIG_FILE):
+        save_config(DEFAULT_CONFIG)
+        return DEFAULT_CONFIG.copy()
+    
+    # 加载配置文件
     try:
-        if os.path.exists(DEFAULT_CONFIG_PATH):
-            with open(DEFAULT_CONFIG_PATH, 'r', encoding='utf-8') as f:
-                user_config = json.load(f)
-                config.update(user_config)
-                logger.debug(f"从 {DEFAULT_CONFIG_PATH} 加载配置")
-    except Exception as e:
-        logger.error(f"加载配置文件失败: {str(e)}，将使用默认配置")
-
-    # 从环境变量加载配置
-    for key in DEFAULT_CONFIG:
-        env_key = f"CIVITAI_DL_{key.upper()}"
-        if env_key in os.environ:
-            value = os.environ[env_key]
-            # 尝试转换布尔值
-            if value.lower() in ('true', 'yes', '1'):
-                config[key] = True
-            elif value.lower() in ('false', 'no', '0'):
-                config[key] = False
-            # 尝试转换数字
-            elif value.isdigit():
-                config[key] = int(value)
-            elif value.replace('.', '', 1).isdigit():
-                config[key] = float(value)
-            else:
+        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+            
+        # 确保所有默认项都存在
+        for key, value in DEFAULT_CONFIG.items():
+            if key not in config:
                 config[key] = value
-
-    return config
+        
+        return config
+    except Exception as e:
+        logger.error(f"加载配置文件失败: {e}")
+        return DEFAULT_CONFIG.copy()
 
 
 def save_config(config: Dict[str, Any]) -> bool:
     """
     保存配置到文件
-
+    
     Args:
         config: 配置字典
-
+        
     Returns:
-        保存是否成功
+        是否成功保存
     """
+    global _config
+    _config = config
+    
+    # 确保配置目录存在
+    config_dir = os.path.dirname(CONFIG_FILE)
+    os.makedirs(config_dir, exist_ok=True)
+    
     try:
-        # 确保配置目录存在
-        os.makedirs(os.path.dirname(DEFAULT_CONFIG_PATH), exist_ok=True)
-
-        # 写入配置文件
-        with open(DEFAULT_CONFIG_PATH, 'w', encoding='utf-8') as f:
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(config, f, indent=2, ensure_ascii=False)
-
-        # 更新全局配置对象
-        global _config
-        _config = config.copy()
-
-        logger.info(f"配置已保存至 {DEFAULT_CONFIG_PATH}")
         return True
     except Exception as e:
-        logger.error(f"保存配置失败: {str(e)}")
+        logger.error(f"保存配置文件失败: {e}")
         return False
 
 
-def update_config(updates: Dict[str, Any]) -> bool:
+def get_config_value(key: str, default: Any = None) -> Any:
     """
-    更新部分配置项
-
+    获取指定配置项的值
+    
     Args:
-        updates: 要更新的配置项字典
-
+        key: 配置项名称
+        default: 如果配置项不存在，返回的默认值
+        
     Returns:
-        更新是否成功
+        配置项值或默认值
     """
-    # 获取当前配置
     config = get_config()
+    return config.get(key, default)
 
-    # 应用更新
-    config.update(updates)
 
-    # 保存更新后的配置
+def set_config_value(key: str, value: Any) -> bool:
+    """
+    设置指定配置项的值
+    
+    Args:
+        key: 配置项名称
+        value: 配置项值
+        
+    Returns:
+        是否成功设置
+    """
+    config = get_config()
+    config[key] = value
     return save_config(config)
 
 
-def reset_config() -> bool:
+def export_config(file_path: str) -> bool:
     """
-    重置配置为默认值
-
+    导出配置到指定文件
+    
+    Args:
+        file_path: 导出文件路径
+        
     Returns:
-        重置是否成功
+        是否成功导出
     """
-    return save_config(DEFAULT_CONFIG.copy())
+    config = get_config()
+    try:
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        logger.error(f"导出配置失败: {e}")
+        return False
+
+
+def import_config(file_path: str) -> bool:
+    """
+    从指定文件导入配置
+    
+    Args:
+        file_path: 导入文件路径
+        
+    Returns:
+        是否成功导入
+    """
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        # 确保关键字段存在
+        for key, value in DEFAULT_CONFIG.items():
+            if key not in config:
+                config[key] = value
+        
+        return save_config(config)
+    except Exception as e:
+        logger.error(f"导入配置失败: {e}")
+        return False

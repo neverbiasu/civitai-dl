@@ -120,38 +120,33 @@ def apply_model_template(
     # 从模型信息提取变量
     if model_info:
         variables.update({
-            "id": str(model_info.get("id", "")),
-            "name": model_info.get("name", ""),
-            "type": model_info.get("type", ""),
+            "type": model_info.get("type", "Unknown"),
+            "name": model_info.get("name", "Unknown"),
+            "id": model_info.get("id", 0),
             "nsfw": "nsfw" if model_info.get("nsfw", False) else "sfw",
         })
 
         # 提取创建者信息
         creator = model_info.get("creator", {})
         if creator:
-            variables["creator"] = creator.get("username", "")
-            variables["creator_id"] = str(creator.get("id", ""))
+            variables["creator"] = creator.get("username", "Unknown")
+            variables["creator_id"] = creator.get("id", 0)
 
     # 从版本信息提取变量
     if version_info:
         variables.update({
-            "version_id": str(version_info.get("id", "")),
-            "version_name": version_info.get("name", ""),
-            "base_model": version_info.get("baseModel", ""),
+            "version": version_info.get("name", "Unknown"),
+            "version_id": version_info.get("id", 0),
+            "base_model": version_info.get("baseModel", "Unknown"),
         })
 
     # 从文件信息提取变量
     if file_info:
+        filename = file_info.get("name", "Unknown")
         variables.update({
-            "file_id": str(file_info.get("id", "")),
-            "file_name": file_info.get("name", ""),
-            "file_format": os.path.splitext(file_info.get("name", ""))[1][1:],
+            "filename": filename,
+            "format": os.path.splitext(filename)[1][1:].lower() if "." in filename else "",
         })
-
-        # 从元数据提取格式信息
-        metadata = file_info.get("metadata", {})
-        if metadata:
-            variables["format"] = metadata.get("format", "")
 
     # 添加日期变量
     now = datetime.datetime.now()
@@ -162,4 +157,64 @@ def apply_model_template(
         "date": now.strftime("%Y-%m-%d"),
     })
 
-    return parse_template(template, variables)
+    # 安全处理所有字符串值
+    for k, v in variables.items():
+        if isinstance(v, str):
+            variables[k] = sanitize_path(v)
+
+    # 应用模板
+    try:
+        path = template.format(**variables)
+        # 规范化路径分隔符
+        return os.path.normpath(path)
+    except KeyError as e:
+        logger.warning(f"模板格式错误，使用默认模板: {e}")
+        # 如果模板中有未知字段，使用默认模板
+        default_path = f"{variables.get('type', 'Unknown')}/{variables.get('creator', 'Unknown')}/{variables.get('name', 'Unknown')}"
+        return os.path.normpath(default_path)
+
+
+def apply_image_template(template: str, model_id: int, image_info: Dict[str, Any]) -> str:
+    """
+    应用路径模板，生成图像文件的保存路径
+    
+    Args:
+        template: 路径模板，如 "images/{model_id}/{hash}"
+        model_id: 模型ID
+        image_info: 图像信息字典
+        
+    Returns:
+        根据模板生成的相对路径
+    """
+    # 提取可用于模板的字段
+    fields = {
+        "model_id": model_id,
+        "image_id": image_info.get("id", 0),
+        "hash": image_info.get("hash", "unknown"),
+        "width": image_info.get("width", 0),
+        "height": image_info.get("height", 0),
+        "nsfw": "nsfw" if image_info.get("nsfw", False) else "sfw",
+    }
+    
+    # 从元数据中提取生成参数
+    meta = image_info.get("meta", {})
+    if isinstance(meta, dict):
+        fields.update({
+            "prompt_hash": hash(meta.get("prompt", "")) if meta.get("prompt") else 0
+        })
+    
+    # 安全处理所有字符串值
+    for k, v in fields.items():
+        if isinstance(v, str):
+            fields[k] = sanitize_path(v)
+    
+    # 应用模板
+    try:
+        path = template.format(**fields)
+        # 规范化路径分隔符
+        return os.path.normpath(path)
+    except KeyError as e:
+        logger.warning(f"图像模板格式错误，使用默认模板: {e}")
+        # 如果模板中有未知字段，使用默认模板
+        default_path = f"images/model_{model_id}/{fields['image_id']}"
+        return os.path.normpath(default_path)
