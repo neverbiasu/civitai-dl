@@ -71,8 +71,10 @@ filterwarnings = [
 ]
 markers = [
     "asyncio: marks tests as asyncio tests",
-    "slow: marks tests as slow running"
+    "slow: marks tests as slow running",
+    "ci: marks tests suitable for continuous integration"
 ]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+ci = "true"
