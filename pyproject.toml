@@ -58,9 +58,21 @@ target-version = ["py38"]
 profile = "black"
 line_length = 120
 
-[tool.mypy]
-python_version = "3.8"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
+[tool.pytest]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+timeout = 30
+addopts = "--tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning"
+]
+markers = [
+    "asyncio: marks tests as asyncio tests",
+    "slow: marks tests as slow running"
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
