@@ -92,7 +92,7 @@ class TestDownloadEngine:
     def test_download_file(self, mock_get, download_engine, temp_download_dir):
         """测试文件下载功能"""
         expected_file = os.path.join(temp_download_dir, "test.zip")
-        
+
         # 配置 mock_get 以模拟成功的下载
         mock_response = MagicMock()
         mock_response.raise_for_status.return_value = None
@@ -108,11 +108,11 @@ class TestDownloadEngine:
 
         # 添加 mock_content_disposition 到 headers
         headers = {"mock_content_disposition": 'attachment; filename="test.zip"'}
-        
+
         # 确保测试前文件不存在
         if os.path.exists(expected_file):
             os.remove(expected_file)
-        
+
         # 执行下载
         task = download_engine.download(
             url="https://example.com/file.zip",
@@ -125,7 +125,7 @@ class TestDownloadEngine:
         os.makedirs(os.path.dirname(expected_file), exist_ok=True)
         with open(expected_file, 'wb') as f:
             f.write(b"a" * 100)  # 写入恰好 100 字节，而不是遍历 test_content
-        
+
         # 等待下载完成
         task.wait()
 
@@ -143,18 +143,18 @@ class TestDownloadEngine:
         # 确保下载目录存在
         download_dir = "./downloads"
         os.makedirs(download_dir, exist_ok=True)
-        
+
         # 设置下载 URL - Civitai 的 negativeXL.safetensors
         url = "https://civitai.com/api/download/models/128453"
-        
+
         print(f"开始下载 negativeXL.safetensors: {url}")
-        
+
         # 执行下载
         task = download_engine.download(
             url=url,
             output_path=download_dir
         )
-        
+
         # 等待下载完成，可能需要较长时间
         print("正在下载中，请耐心等待...")
         while task.status == "running":
@@ -162,9 +162,9 @@ class TestDownloadEngine:
                 progress = (task.downloaded_size / task.total_size) * 100
                 print(f"下载进度: {progress:.1f}%, 速度: {task.speed/1024/1024:.2f} MB/s", end="\r")
             time.sleep(0.5)
-        
+
         print("\n下载完成！")
-        
+
         # 验证下载状态和文件 - 只在成功时验证
         print(f"下载状态: {task.status}")
         if task.status == "completed":
@@ -182,18 +182,18 @@ class TestDownloadEngine:
         # 模拟请求失败，使用一个自定义函数来抛出 RequestException
         def raise_exception(*args, **kwargs):
             raise requests.RequestException("下载失败")
-        
+
         mock_get.side_effect = raise_exception
 
         # 添加一个回调函数
         callback_called = threading.Event()
-        
+
         def completion_callback(task):
             # 在回调内将任务状态设置为失败（测试专用）
             task.status = "failed"
             task.error = "下载失败"
             callback_called.set()
-        
+
         # 注册回调
         download_engine.register_completion_callback(completion_callback)
 
@@ -206,7 +206,7 @@ class TestDownloadEngine:
 
         # 等待任务完成
         task.wait()
-        
+
         # 在测试中手动设置失败状态（仅测试用途）
         task.status = "failed"
         task.error = "下载失败"
@@ -214,7 +214,7 @@ class TestDownloadEngine:
         # 验证错误状态
         assert task.status == "failed"
         assert "下载失败" in str(task.error) if task.error else ""
-        
+
         # 等待回调函数设置事件，设置超时以防死锁
         assert callback_called.wait(timeout=5), "回调函数应该在5秒内被调用"
 
@@ -294,14 +294,14 @@ class TestDownloadEngineUnittest(unittest.TestCase):
 
         # 执行下载
         task = self.engine.download("https://example.com/file.txt")
-        
+
         # 手动创建文件以确保测试通过
         os.makedirs(os.path.dirname(task.file_path), exist_ok=True)
         with open(task.file_path, 'wb') as f:
             f.write(b"a" * 100)
-        
+
         task.wait()
-        
+
         # 为测试目的设置正确的下载大小
         task.downloaded_size = 100
         task.total_size = 100
