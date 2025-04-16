@@ -1,59 +1,65 @@
 # Civitai-DL
 
-一款专为AI艺术创作者设计的工具，用于高效浏览、下载和管理Civitai平台上的模型资源。
+[![PyPI - Version](https://img.shields.io/pypi/v/civitai-dl.svg)](https://pypi.org/project/civitai-dl/)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/civitai-dl.svg)](https://pypi.org/project/civitai-dl/)
+[![GitHub License](https://img.shields.io/github/license/neverbiasu/civitai-dl.svg)](https://github.com/neverbiasu/civitai-dl/blob/main/LICENSE)
 
-## 功能特点
+A tool designed for AI art creators to efficiently browse, download, and manage model resources from the Civitai platform.
 
-- 模型搜索和浏览
-- 批量下载模型和图像
-- 断点续传和下载队列管理
-- 图形界面和命令行两种交互方式
+[中文文档](README_CN.md) | English
 
-## 安装说明
+## Features
 
-### 使用pip安装
+- Model search and browsing
+- Batch download of models and images
+- Resume downloads and queue management
+- Both graphical interface and command line interaction
+
+## Installation
+
+### Using pip
 
 ```bash
 pip install civitai-dl
 ```
 
-### 从源码安装
+### From source
 
 ```bash
-# 克隆仓库
+# Clone repository
 git clone https://github.com/neverbiasu/civitai-dl.git
 cd civitai-dl
 
-# 使用Poetry安装
+# Install using Poetry
 poetry install
 ```
 
-## 快速入门
+## Quick Start
 
-### 命令行使用
+### Command Line Usage
 
 ```bash
-# 下载指定ID的模型
+# Download model by ID
 civitai-dl download model 12345
 
-# 搜索模型
+# Search models
 civitai-dl browse models --query "portrait" --type "LORA"
 ```
 
-### 启动Web界面
+### Launch Web Interface
 
 ```bash
 civitai-dl webui
 ```
 
-## 文档
+## Documentation
 
-详细文档请访问[项目文档网站](https://github.com/neverbiasu/civitai-dl)。
+For detailed documentation, please visit [project documentation site](https://github.com/neverbiasu/civitai-dl).
 
-## 贡献
+## Contributing
 
-欢迎提交Pull Request或创建Issue。
+Pull requests and issue reports are welcome.
 
-## 许可证
+## License
 
 MIT License
