@@ -2,6 +2,8 @@
 
 import logging
 import sys
+import os
+from importlib import import_module
 from typing import Optional
 
 import click
@@ -40,10 +42,24 @@ def cli(verbose=0, quiet=False):
         logger.info("详细日志模式已启用")
 
 
+# 动态导入命令模块
+def import_commands():
+    """动态导入所有命令模块"""
+    commands_dir = os.path.join(os.path.dirname(__file__), "commands")
+    for filename in os.listdir(commands_dir):
+        if filename.endswith(".py") and not filename.startswith("__"):
+            module_name = filename[:-3]  # 去掉.py后缀
+            module = import_module(f"civitai_dl.cli.commands.{module_name}")
+            if hasattr(module, module_name):
+                command = getattr(module, module_name)
+                cli.add_command(command)
+
+
 # 注册命令组
 cli.add_command(download)
 cli.add_command(config)  # 注册配置命令
 # 注册其他命令组...
+import_commands()
 
 
 @cli.command()
@@ -64,17 +80,14 @@ def webui():
 @cli.group()
 def browse():
     """浏览和搜索Civitai上的模型"""
+    pass
 
+# 删除现有的browse_models命令实现，我们会从browse.py导入完整版本
+from civitai_dl.cli.commands.browse import browse as browse_commands
 
-@browse.command("models")
-@click.option("--query", "-q", help="搜索关键词")
-@click.option("--type", "-t", help="模型类型")
-@click.option("--limit", "-l", type=int, default=20, help="结果数量")
-def browse_models(query: Optional[str], type: Optional[str], limit: int):
-    """搜索和浏览模型"""
-    click.echo(f"搜索模型: {query or '全部'} (类型: {type or '全部'}, 限制: {limit})")
-    # 这里将实现实际的搜索逻辑
-    click.echo("搜索功能正在开发中...")
+# 将browse.py中的命令添加到browse命令组
+for command in getattr(browse_commands, 'commands', {}).values():
+    browse.add_command(command)
 
 
 def main():

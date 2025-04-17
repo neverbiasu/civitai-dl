@@ -81,9 +81,8 @@ def create_app():
                             interactive=False,
                         )
 
-            # 模型搜索标签页 (尚未完全实现)
+            # 模型搜索标签页
             with gr.Tab("模型搜索"):
-                # TODO: 这里是模型搜索功能，目前UI已搭建但后端功能尚未完全实现
                 with gr.Row():
                     with gr.Column(scale=1):
                         search_query = gr.Textbox(label="搜索关键词")
@@ -129,6 +128,106 @@ def create_app():
                     """
                 > **注意**: 模型搜索功能正在开发中，目前展示的是示例数据。完整功能将在后续版本中提供。
                 """
+                )
+
+                # 创建高级筛选组件
+                filter_builder = FilterBuilder()
+                filter_accordion, current_filter, apply_filter_btn, save_template_btn, load_template_btn = filter_builder.create_ui()
+
+                # 设置高级筛选回调
+                def on_preview_filter(filter_condition):
+                    try:
+                        api_params = FilterParser.to_api_params(filter_condition)
+                        api_params["limit"] = 1
+                        response = api.get_models(api_params)
+                        count = response.get("metadata", {}).get("totalItems", 0)
+                        return f"符合条件的模型数量: {count}"
+                    except Exception as e:
+                        return f"预览失败: {str(e)}"
+
+                def on_apply_filter(filter_condition):
+                    try:
+                        api_params = FilterParser.to_api_params(filter_condition)
+                        api_params["limit"] = 50
+                        response = api.get_models(api_params)
+                        models = response.get("items", [])
+
+                        # 应用客户端筛选
+                        filtered_models = apply_filter(models, filter_condition)
+
+                        # 转换为表格数据
+                        table_data = [
+                            [
+                                model.get("id", ""),
+                                model.get("name", ""),
+                                model.get("type", ""),
+                                model.get("creator", {}).get("username", ""),
+                                model.get("stats", {}).get("downloadCount", 0),
+                                model.get("stats", {}).get("rating", 0),
+                            ]
+                            for model in filtered_models
+                        ]
+
+                        return table_data
+                    except Exception as e:
+                        gr.Warning(f"搜索失败: {str(e)}")
+                        return []
+
+                filter_builder.setup_callbacks(
+                    (filter_accordion, current_filter, apply_filter_btn, save_template_btn, load_template_btn),
+                    api, 
+                    on_preview=on_preview_filter,
+                    on_apply=lambda filter_condition: update_results(on_apply_filter(filter_condition))
+                )
+
+                def update_results(data):
+                    return data
+
+                # 基本搜索按钮回调
+                def on_search(query, types, sort, nsfw_enabled):
+                    try:
+                        params = {}
+                        if query:
+                            params["query"] = query
+                        if types:
+                            params["types"] = types
+                        if sort:
+                            params["sort"] = sort
+                        if not nsfw_enabled:
+                            params["nsfw"] = "false"
+                        params["limit"] = 50
+
+                        response = api.get_models(params)
+                        models = response.get("items", [])
+
+                        # 转换为表格数据
+                        table_data = [
+                            [
+                                model.get("id", ""),
+                                model.get("name", ""),
+                                model.get("type", ""),
+                                model.get("creator", {}).get("username", ""),
+                                model.get("stats", {}).get("downloadCount", 0),
+                                model.get("stats", {}).get("rating", 0),
+                            ]
+                            for model in models
+                        ]
+
+                        return table_data
+                    except Exception as e:
+                        gr.Warning(f"搜索失败: {str(e)}")
+                        return []
+
+                search_btn.click(
+                    fn=on_search,
+                    inputs=[search_query, model_types, sort_options, nsfw],
+                    outputs=[results],
+                )
+
+                apply_filter_btn.click(
+                    fn=lambda: None,  # 实际处理在setup_callbacks中设置
+                    inputs=[],
+                    outputs=[results],
                 )
 
             # 图像下载标签页
