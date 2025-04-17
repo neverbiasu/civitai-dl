@@ -56,6 +56,25 @@ civitai-dl webui
 
 For detailed documentation, please visit [project documentation site](https://github.com/neverbiasu/civitai-dl).
 
+## Changelog
+
+### v0.1.1 (2023-11-22)
+
+- **Feature**: Added `browse` command group to search and explore models from the CLI
+- **Feature**: Implemented advanced filter builder component for both WebUI and CLI searches
+- **Feature**: Added filter templates to save and reuse complex search conditions
+
+### v0.1.0 (2023-11-15)
+
+- Initial release
+- Support downloading model files by model ID
+- Support downloading specific version files by model ID and version ID
+- Support downloading associated example images for models
+- Provided basic Command Line Interface (CLI)
+- Provided experimental Web User Interface (WebUI)
+- Support for proxy settings
+- Support for API key authentication
+
 ## Contributing
 
 Pull requests and issue reports are welcome.
