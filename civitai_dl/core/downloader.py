@@ -757,7 +757,6 @@ class DownloadEngine:
             except OSError as e:
                 logger.error(f"创建任务输出目录失败: {effective_output_path}, 错误: {e}")
                 # Let the task creation potentially fail later if path is invalid
-                pass
 
             final_file_path = os.path.join(effective_output_path, effective_filename)
 

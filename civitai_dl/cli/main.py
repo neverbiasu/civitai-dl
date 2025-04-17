@@ -1,10 +1,10 @@
 """Command-line interface for Civitai Downloader."""
 
+from civitai_dl.cli.commands.browse import browse as browse_commands
 import logging
 import sys
 import os
 from importlib import import_module
-from typing import Optional
 
 import click
 
@@ -80,10 +80,9 @@ def webui():
 @cli.group()
 def browse():
     """浏览和搜索Civitai上的模型"""
-    pass
+
 
 # 删除现有的browse_models命令实现，我们会从browse.py导入完整版本
-from civitai_dl.cli.commands.browse import browse as browse_commands
 
 # 将browse.py中的命令添加到browse命令组
 for command in getattr(browse_commands, 'commands', {}).values():

@@ -2,10 +2,9 @@
 Civitai API 客户端
 此模块提供与Civitai API交互的全部功能
 """
+from typing import Dict, Any, Optional, List
 import threading
 import time
-from typing import Any, Dict, List, Optional
-from urllib.parse import urljoin
 
 import requests
 
@@ -29,6 +28,7 @@ class APIError(Exception):
         # 构建包含解决方案的完整错误消息
         full_message = message
         if self.solutions:
+            # Add newline before closing quote
             full_message += "\nPossible solutions:\n" + "\n".join(
                 [f"{i+1}. {s}" for i, s in enumerate(self.solutions)]
             )
@@ -307,16 +307,16 @@ class CivitaiAPI:
 
     def get_models(self, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """获取模型列表
-        
+
         Args:
             params: 查询参数
-            
+
         Returns:
             模型列表和元数据
         """
         # 构建请求参数
         request_params = params or {}
-        
+
         # 发送请求
         return self._make_request("GET", "models", params=request_params)
 
@@ -589,289 +589,3 @@ class CivitaiAPI:
                 else:
                     logger.error(f"请求在{self.max_retries}次尝试后仍然失败: {str(e)}")
                     raise
-
-import requests
-import logging
-import time
-import os
-from typing import Dict, Any, Optional, List, Union
-from urllib.parse import urljoin
-
-# 配置日志
-logger = logging.getLogger(__name__)
-
-class APIError(Exception):
-    """Civitai API 错误"""
-    
-    def __init__(self, message: str, status_code: Optional[int] = None, 
-                 response: Optional[requests.Response] = None):
-        """初始化API错误
-        
-        Args:
-            message: 错误信息
-            status_code: HTTP状态码
-            response: 请求响应对象
-        """
-        self.status_code = status_code
-        self.response = response
-        self.message = message
-        
-        # 构建更详细的错误信息
-        full_message = message
-        if status_code:
-            full_message += f" (状态码: {status_code})"
-        
-        # 添加可能的解决方案
-        if status_code == 401:
-            full_message += "\n可能的解决方案:\n" + "\n".join([
-                "- 检查您的API密钥是否正确",
-                "- 确认API密钥未过期或被撤销",
-                "- 验证您是否有访问此资源的权限"
-            ])
-        elif status_code == 429:
-            full_message += "\n可能的解决方案:\n" + "\n".join([
-                "- 减少请求频率",
-                "- 稍后再试",
-                "- 检查您的API使用限制"
-            ])
-        
-        super().__init__(full_message)
-
-class CivitaiAPI:
-    """Civitai API客户端"""
-    
-    def __init__(self, api_key: Optional[str] = None, base_url: str = "https://civitai.com/api/v1/"):
-        """初始化API客户端
-        
-        Args:
-            api_key: Civitai API密钥，可选
-            base_url: API基础URL
-        """
-        self.base_url = base_url
-        self.headers = {}
-        
-        # 如果提供了API密钥，添加到请求头
-        if api_key:
-            self.headers["Authorization"] = f"Bearer {api_key}"
-            
-        # 从配置中获取API密钥（如果没有直接提供）
-        if not api_key:
-            try:
-                from ..core.config import get_config_value
-                api_key = get_config_value("api_key")
-                if api_key:
-                    self.headers["Authorization"] = f"Bearer {api_key}"
-            except (ImportError, AttributeError):
-                # 配置模块可能还未实现，忽略错误
-                pass
-        
-        # 请求频率控制
-        self.last_request_time = 0
-        self.request_interval = 1.0  # 默认请求间隔(秒)
-    
-    def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
-        """发送API请求
-        
-        Args:
-            method: HTTP方法 (GET, POST等)
-            endpoint: API端点
-            **kwargs: 传递给requests的参数
-            
-        Returns:
-            API响应(JSON)
-            
-        Raises:
-            APIError: 请求失败
-        """
-        # 控制请求频率
-        current_time = time.time()
-        elapsed = current_time - self.last_request_time
-        if elapsed < self.request_interval:
-            time.sleep(self.request_interval - elapsed)
-        
-        # 构建请求URL和头部
-        url = urljoin(self.base_url, endpoint)
-        headers = {**self.headers, **kwargs.pop('headers', {})}
-        
-        try:
-            # 发送请求
-            logger.debug(f"发送 {method} 请求到 {url}")
-            response = requests.request(method, url, headers=headers, **kwargs)
-            self.last_request_time = time.time()
-            
-            # 检查响应状态
-            response.raise_for_status()
-            
-            # 调整请求间隔（如果服务器响应过慢，自动增加间隔）
-            if "Retry-After" in response.headers:
-                retry_after = int(response.headers["Retry-After"])
-                self.request_interval = max(self.request_interval, retry_after)
-                
-            # 返回JSON数据
-            return response.json()
-            
-        except requests.exceptions.RequestException as e:
-            logger.error(f"API请求失败: {str(e)}")
-            # 处理429错误（请求过多）
-            if hasattr(e, 'response') and e.response is not None:
-                status_code = e.response.status_code
-                if status_code == 429:
-                    self.request_interval *= 2  # 指数退避
-                    logger.warning(f"请求频率过高，增加请求间隔到 {self.request_interval}秒")
-                
-                # 尝试获取错误信息
-                error_msg = str(e)
-                try:
-                    error_data = e.response.json()
-                    if 'message' in error_data:
-                        error_msg = error_data['message']
-                except (ValueError, KeyError):
-                    pass
-                
-                raise APIError(error_msg, status_code, e.response) from e
-            
-            raise APIError(str(e)) from e
-    
-    def get_models(self, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """获取模型列表
-        
-        Args:
-            params: 查询参数
-            
-        Returns:
-            模型列表和元数据
-        """
-        # 构建请求参数
-        request_params = params or {}
-        
-        # 发送请求
-        return self._make_request("GET", "models", params=request_params)
-    
-    def get_model(self, model_id: int) -> Dict[str, Any]:
-        """获取特定模型的详细信息
-        
-        Args:
-            model_id: 模型ID
-            
-        Returns:
-            模型详细信息
-        """
-        return self._make_request("GET", f"models/{model_id}")
-    
-    def get_model_versions(self, model_id: int, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """获取模型版本列表
-        
-        Args:
-            model_id: 模型ID
-            params: 查询参数
-            
-        Returns:
-            模型版本列表
-        """
-        request_params = params or {}
-        return self._make_request("GET", f"models/{model_id}/versions", params=request_params)
-    
-    def get_model_version(self, version_id: int) -> Dict[str, Any]:
-        """获取特定模型版本的详细信息
-        
-        Args:
-            version_id: 版本ID
-            
-        Returns:
-            模型版本详细信息
-        """
-        return self._make_request("GET", f"model-versions/{version_id}")
-    
-    def get_download_url(self, version_id: int, file_id: Optional[int] = None) -> str:
-        """获取模型文件的下载URL
-        
-        Args:
-            version_id: 版本ID
-            file_id: 文件ID，可选
-            
-        Returns:
-            下载URL
-        """
-        endpoint = f"model-versions/{version_id}/download"
-        if file_id:
-            endpoint += f"/{file_id}"
-        
-        response = self._make_request("GET", endpoint, allow_redirects=False)
-        
-        # Civitai API返回的是重定向URL
-        return response.get("downloadUrl", "")
-    
-    def get_images(self, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """获取图像列表
-        
-        Args:
-            params: 查询参数
-            
-        Returns:
-            图像列表和元数据
-        """
-        request_params = params or {}
-        return self._make_request("GET", "images", params=request_params)
-    
-    def get_all_images(self, base_params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        """获取所有图像，自动处理游标分页
-        
-        Args:
-            base_params: 基本查询参数
-            
-        Returns:
-            图像列表
-        """
-        results = []
-        params = base_params.copy() if base_params else {}
-        
-        while True:
-            response = self.get_images(params)
-            if "items" in response:
-                results.extend(response["items"])
-            
-            # 检查是否有下一页
-            if "metadata" in response and "nextCursor" in response["metadata"]:
-                next_cursor = response["metadata"]["nextCursor"]
-                if next_cursor:
-                    params["cursor"] = next_cursor
-                    continue
-            
-            # 没有下一页，结束循环
-            break
-        
-        return results
-    
-    def get_image(self, image_id: int) -> Dict[str, Any]:
-        """获取特定图像的详细信息
-        
-        Args:
-            image_id: 图像ID
-            
-        Returns:
-            图像详细信息
-        """
-        return self._make_request("GET", f"images/{image_id}")
-    
-    def get_tags(self, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """获取标签列表
-        
-        Args:
-            params: 查询参数
-            
-        Returns:
-            标签列表
-        """
-        request_params = params or {}
-        return self._make_request("GET", "tags", params=request_params)
-    
-    def get_creator(self, username: str) -> Dict[str, Any]:
-        """获取创作者信息
-        
-        Args:
-            username: 创作者用户名
-            
-        Returns:
-            创作者信息
-        """
-        return self._make_request("GET", f"creators/{username}")

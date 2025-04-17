@@ -175,7 +175,7 @@ def create_app():
 
                 filter_builder.setup_callbacks(
                     (filter_accordion, current_filter, apply_filter_btn, save_template_btn, load_template_btn),
-                    api, 
+                    api,
                     on_preview=on_preview_filter,
                     on_apply=lambda filter_condition: update_results(on_apply_filter(filter_condition))
                 )
