@@ -430,45 +430,13 @@ class CivitaiAPI:
 
     def _make_request(self, method, endpoint, params=None, data=None, json=None):
         """发送API请求并处理限制"""
-        # 实现基本功能以支持测试
-        f"{self.base_url}/{endpoint.lstrip('/')}"
+        url = f"{self.base_url}/{endpoint.lstrip('/')}"
 
-        # 模拟返回数据，支持测试
-        if "models" in endpoint:
-            return {
-                "items": [
-                    {
-                        "id": 1,
-                        "name": "Test Model",
-                        "creator": {"username": "tester"},
-                        "type": "Checkpoint",
-                        "stats": {"downloadCount": 100, "rating": 4.5},
-                        "modelVersions": [
-                            {
-                                "id": 101,
-                                "name": "v1.0",
-                                "files": [
-                                    {
-                                        "name": "model.safetensors",
-                                        "id": 1001,
-                                        "sizeKB": 1024,
-                                        "downloadUrl": "https://example.com/file.safetensors",
-                                        "primary": True,
-                                    }
-                                ],
-                            }
-                        ],
-                    }
-                ],
-                "metadata": {
-                    "totalItems": 1,
-                    "currentPage": 1,
-                    "pageSize": 10,
-                    "totalPages": 1,
-                },
-            }
-
-        return {}
+        # 实际发送请求
+        response = self._rate_limited_request(
+            method, url, params=params, data=data, json=json
+        )
+        return self._process_response(response)
 
     def get_model_images(
         self, model_id, version_id=None, limit=20, nsfw=False, cursor=None
