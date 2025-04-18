@@ -101,8 +101,8 @@ class TestCivitaiAPI:
                 else:
                     raise pytest.fail(f"API请求在 {max_retries} 次尝试后仍失败: {str(e)}") from last_exception
 
-    @pytest.mark.skipif(os.environ.get("SKIP_REAL_API", "1") == "1", 
-                       reason="默认跳过实际API调用，设置SKIP_REAL_API=0启用")
+    @pytest.mark.skipif(os.environ.get("SKIP_REAL_API", "1") == "1",
+                        reason="默认跳过实际API调用，设置SKIP_REAL_API=0启用")
     def test_get_images(self, api_client):
         """测试获取图像列表功能"""
         # 先获取一个模型的ID
@@ -139,7 +139,7 @@ def test_api_connection(mock_request):
 
     # 获取系统代理设置
     proxy = os.environ.get("CIVITAI_PROXY") or os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
-    
+
     # 使用原始的CivitaiAPI，根据环境添加代理设置
     api = CivitaiAPI(verify=False, proxy=proxy)
     response = api.get_models(params={"limit": 1})
@@ -151,7 +151,7 @@ def test_api_connection(mock_request):
     if len(response["items"]) > 0:
         print("DEBUG - 第一个item的ID:", response["items"][0]["id"], "类型:", type(response["items"][0]["id"]))
         print("DEBUG - 第一个item的完整内容:", response["items"][0])
-    
+
     # 验证响应处理
     assert "items" in response
     assert len(response["items"]) == 1
