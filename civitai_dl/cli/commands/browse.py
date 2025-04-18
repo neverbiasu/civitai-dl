@@ -1,8 +1,14 @@
+"""Browse and search Civitai resources through the command line interface.
+
+Provides commands for browsing models, filter templates, and search history.
+"""
+
 import sys
 import json
+import difflib
+from typing import Dict, List, Any, Optional, Union, Tuple, cast
+
 import click
-import logging
-from typing import Dict, List, Any, Optional
 from tabulate import tabulate
 
 from ...api.client import CivitaiAPI, APIError
@@ -10,69 +16,112 @@ from ...core.filter import (
     FilterParser, FilterManager, apply_filter,
     sort_results
 )
-from ...utils.config import get_config  # Import get_config
+from ...utils.config import get_config
+from ...utils.logger import get_logger
 
-# 配置日志
-logger = logging.getLogger(__name__)
+# Configure logging
+logger = get_logger(__name__)
 
-# 创建API客户端
+# Create API client
 api = CivitaiAPI()
 
-# 创建筛选管理器
+# Create filter manager
 filter_manager = FilterManager()
 
 
-@click.group(help="浏览和搜索Civitai资源")
-def browse():
-    """浏览命令组"""
+@click.group(help="Browse and search Civitai resources")
+def browse() -> None:
+    """Command group for browsing Civitai resources."""
+    pass
 
 
 @browse.command("models")
-@click.option("--query", "-q", help="搜索关键词")
-@click.option("--type", "-t", help="模型类型",
-              type=click.Choice(["Checkpoint", "LORA", "TextualInversion",
-                                 "Hypernetwork", "AestheticGradient", "Controlnet", "Poses"]))
-@click.option("--sort", "-s", help="排序方式",
-              type=click.Choice(["Newest", "Most Downloaded", "Highest Rated", "Most Liked"]))
-@click.option("--creator", "-c", help="创作者名称")
-@click.option("--tag", help="标签")
-@click.option("--base-model", help="基础模型")
-@click.option("--nsfw/--no-nsfw", default=True, help="是否包含NSFW内容")
-@click.option("--limit", "-l", type=int, default=20, help="结果数量")
-@click.option("--format", "-f", type=click.Choice(["table", "json"]), default="table", help="输出格式")
-@click.option("--output", "-o", help="输出文件路径")
-@click.option("--filter", help="复杂筛选条件(JSON格式)")
-@click.option("--filter-template", help="使用筛选模板")
-@click.option("--min-rating", type=float, help="最低评分")
-@click.option("--max-rating", type=float, help="最高评分")
-@click.option("--min-downloads", type=int, help="最低下载量")
-@click.option("--max-downloads", type=int, help="最高下载量")
-@click.option("--interactive", "-i", is_flag=True, help="交互式筛选模式")
-def browse_models(query, type, sort, creator, tag, base_model, nsfw, limit,
-                  format, output, filter, filter_template, min_rating, max_rating,
-                  min_downloads, max_downloads, interactive):
-    """搜索和浏览模型"""
-    # 显示当前搜索条件
-    model_type_str = type if type else "全部"
-    click.echo(f"搜索模型: {query or '无关键词'} (类型: {model_type_str}, 限制: {limit})")
+@click.option("--query", "-q", help="Search keyword")
+@click.option(
+    "--type", "-t", 
+    help="Model type",
+    type=click.Choice([
+        "Checkpoint", "LORA", "TextualInversion",
+        "Hypernetwork", "AestheticGradient", 
+        "Controlnet", "Poses"
+    ])
+)
+@click.option(
+    "--sort", "-s", 
+    help="Sort method",
+    type=click.Choice([
+        "Highest Rated", "Most Downloaded", 
+        "Newest", "Most Liked"
+    ])
+)
+@click.option("--creator", "-c", help="Creator name")
+@click.option("--tag", help="Tag")
+@click.option("--base-model", help="Base model")
+@click.option("--nsfw/--no-nsfw", default=True, help="Include NSFW content")
+@click.option("--limit", "-l", type=int, default=20, help="Result limit")
+@click.option(
+    "--format", "-f", 
+    type=click.Choice(["table", "json"]), 
+    default="table", 
+    help="Output format"
+)
+@click.option("--output", "-o", help="Output file path")
+@click.option("--filter", help="Complex filter condition (JSON format)")
+@click.option("--filter-template", help="Use saved filter template")
+@click.option("--min-rating", type=float, help="Minimum rating")
+@click.option("--max-rating", type=float, help="Maximum rating")
+@click.option("--min-downloads", type=int, help="Minimum downloads")
+@click.option("--max-downloads", type=int, help="Maximum downloads")
+@click.option("--interactive", "-i", is_flag=True, help="Interactive filter mode")
+def browse_models(
+    query: Optional[str], 
+    type: Optional[str], 
+    sort: Optional[str],
+    creator: Optional[str], 
+    tag: Optional[str], 
+    base_model: Optional[str],
+    nsfw: bool, 
+    limit: int, 
+    format: str, 
+    output: Optional[str],
+    filter: Optional[str], 
+    filter_template: Optional[str],
+    min_rating: Optional[float], 
+    max_rating: Optional[float],
+    min_downloads: Optional[int], 
+    max_downloads: Optional[int],
+    interactive: bool
+) -> None:
+    """Search and browse models on Civitai.
+    
+    Searches for models using various filters and displays results in
+    table or JSON format. Supports client-side filtering and sorting.
+    """
+    # Display current search parameters
+    model_type_str = type if type else "All"
+    click.echo(f"Searching models: {query or 'no keyword'} (Type: {model_type_str}, Limit: {limit})")
 
     try:
-        # 如果选择交互式模式，进入交互式筛选
-        if (interactive):
+        # Build filter condition
+        if interactive:
             filter_condition = interactive_filter_builder()
+            if not filter_condition:
+                click.echo("Search canceled.")
+                return
         else:
-            # 确定筛选条件
+            # Determine filter condition based on parameters
             filter_condition = determine_filter_condition(
                 filter, filter_template, query, type, creator, tag, base_model,
                 min_rating, max_rating, min_downloads, max_downloads
             )
 
-        # 将筛选条件转换为API参数
+        # Convert filter condition to API parameters
         api_params = {}
         if filter_condition:
             api_params = FilterParser.to_api_params(filter_condition)
+            logger.debug(f"Filter condition converted to API params: {api_params}")
 
-        # 添加基本参数
+        # Add basic parameters to API request
         api_params["limit"] = limit
         if query and "query" not in api_params:
             api_params["query"] = query
@@ -89,31 +138,27 @@ def browse_models(query, type, sort, creator, tag, base_model, nsfw, limit,
         if base_model:
             api_params["baseModel"] = base_model
 
-        # 如果有参数未能转换为API参数，记录提示
-        if filter_condition and len(api_params) <= 3:  # 基本上只有limit和可能的类型/查询参数
-            click.echo("警告: 部分筛选条件无法直接转换为API参数，将在客户端进行筛选", err=True)
+        # Warn if filters need client-side processing
+        if filter_condition and len(api_params) <= 3:
+            click.echo("Warning: Some filter conditions cannot be converted to API parameters and will be applied client-side", err=True)
 
-        # 显示正在执行搜索
-        click.echo("正在搜索模型，请稍候...")
-
-        # 获取模型列表
+        # Execute search
+        click.echo("Searching models, please wait...")
         response = api.get_models(api_params)
-
-        # 提取模型列表
         models = response.get("items", [])
 
         if not models:
-            click.echo("没有找到匹配的模型")
+            click.echo("No matching models found")
             return
 
-        # 应用客户端筛选
+        # Apply client-side filtering if needed
         if filter_condition:
             original_count = len(models)
             models = apply_filter(models, filter_condition)
             if len(models) < original_count:
-                click.echo(f"客户端筛选: 从 {original_count} 个结果中筛选出 {len(models)} 个匹配项")
+                click.echo(f"Client-side filtering: {len(models)} matches out of {original_count} results")
 
-        # 应用客户端排序 (如果需要)
+        # Apply client-side sorting for parameters that can't be handled by API
         client_sort_fields = {
             "min_rating": "stats.rating",
             "max_rating": "stats.rating",
@@ -123,36 +168,35 @@ def browse_models(query, type, sort, creator, tag, base_model, nsfw, limit,
 
         for param, field in client_sort_fields.items():
             if locals()[param] is not None:
-                click.echo(f"按 {field} 排序结果")
+                click.echo(f"Sorting results by {field}")
                 ascending = param.startswith("min_")
                 models = sort_results(models, field, ascending)
 
-        # 添加到历史记录
+        # Add to search history
         if filter_condition:
             filter_manager.add_to_history(filter_condition)
 
-        # 格式化输出
+        # Display results
         display_search_results(models, format, output)
 
-        # 显示分页信息
+        # Show pagination info
         metadata = response.get("metadata", {})
         total_count = metadata.get("totalItems", 0)
         current_page = metadata.get("currentPage", 1)
         total_pages = metadata.get("totalPages", 1)
+        click.echo(f"\nTotal: {total_count} results, Page: {current_page}/{total_pages}")
 
-        click.echo(f"\n总共 {total_count} 个结果，当前第 {current_page}/{total_pages} 页")
-
-        # 显示提示
-        click.echo("提示: 使用 --filter 参数可以指定复杂筛选条件")
-        click.echo("      使用 --filter-template 参数可以使用保存的筛选模板")
+        # Show tips
+        click.echo("Tip: Use --filter for complex filter conditions")
+        click.echo("     Use --filter-template to apply saved filter templates")
 
     except APIError as e:
-        logger.error(f"API错误: {str(e)}")
-        click.echo(f"搜索失败: {str(e)}", err=True)
+        logger.error(f"API Error: {str(e)}")
+        click.echo(f"Search failed: {str(e)}", err=True)
         sys.exit(1)
     except Exception as e:
-        logger.exception(f"搜索失败: {str(e)}")
-        click.echo(f"搜索失败: {str(e)}", err=True)
+        logger.exception(f"Search failed: {str(e)}")
+        click.echo(f"Search failed: {str(e)}", err=True)
         sys.exit(1)
 
 
@@ -162,7 +206,7 @@ def browse_models(query, type, sort, creator, tag, base_model, nsfw, limit,
 @click.option("--filter", "-f", help="模板筛选条件 (JSON格式)")
 @click.option("--remove", "-r", help="删除模板")
 @click.option("--show", "-s", help="显示模板内容")
-def browse_templates(list, add, filter, remove, show):
+def browse_templates(list: bool, add: Optional[str], filter: Optional[str], remove: Optional[str], show: Optional[str]) -> None:
     """管理筛选模板"""
     # 如果没有指定任何操作，默认列出所有模板
     if not any([list, add, remove, show]):
@@ -214,7 +258,7 @@ def browse_templates(list, add, filter, remove, show):
 @browse.command("history")
 @click.option("--limit", "-l", type=int, default=10, help="显示历史记录数量")
 @click.option("--clear", "-c", is_flag=True, help="清空历史记录")
-def browse_history(limit, clear):
+def browse_history(limit: int, clear: bool) -> None:
     """查看筛选历史"""
     if clear:
         filter_manager.clear_history()
@@ -228,21 +272,50 @@ def browse_history(limit, clear):
 
     click.echo("最近的筛选历史:")
     for i, record in enumerate(history[:limit]):
-        click.echo(f"{i+1}. [{record['timestamp']}]")
-        click.echo(f"   {json.dumps(record['condition'], indent=2)}")
+        click.echo(f"{i+1}. [{record['timestamp']}]\n   {json.dumps(record['condition'], indent=2)}")
         if i < len(history) - 1:
             click.echo("")
 
 
-def determine_filter_condition(filter_json, template_name, query, type, creator,
-                               tag, base_model, min_rating, max_rating,
-                               min_downloads, max_downloads) -> Dict[str, Any]:
-    """确定筛选条件，优先级: filter > template > 其他参数"""
+def determine_filter_condition(
+    filter_json: Optional[str], 
+    template_name: Optional[str], 
+    query: Optional[str], 
+    type: Optional[str], 
+    creator: Optional[str],
+    tag: Optional[str], 
+    base_model: Optional[str], 
+    min_rating: Optional[float], 
+    max_rating: Optional[float],
+    min_downloads: Optional[int], 
+    max_downloads: Optional[int]
+) -> Dict[str, Any]:
+    """Determine filter condition with priority: filter > template > other parameters.
+    
+    Args:
+        filter_json: JSON filter condition (highest priority)
+        template_name: Name of a saved filter template
+        query: Search query keyword
+        type: Model type filter
+        creator: Creator username filter
+        tag: Tag filter
+        base_model: Base model filter
+        min_rating: Minimum rating threshold
+        max_rating: Maximum rating threshold
+        min_downloads: Minimum downloads threshold
+        max_downloads: Maximum downloads threshold
+        
+    Returns:
+        Filter condition dictionary
+        
+    Raises:
+        SystemExit: If filter JSON parsing fails or template not found
+    """
     if filter_json:
         try:
             return json.loads(filter_json)
         except json.JSONDecodeError as e:
-            click.echo(f"解析筛选条件失败: {str(e)}", err=True)
+            click.echo(f"Failed to parse filter condition: {str(e)}", err=True)
             sys.exit(1)
 
     if template_name:
@@ -250,10 +323,10 @@ def determine_filter_condition(filter_json, template_name, query, type, creator,
         if template:
             return template
         else:
-            click.echo(f"筛选模板 '{template_name}' 不存在", err=True)
+            click.echo(f"Filter template '{template_name}' not found", err=True)
             sys.exit(1)
 
-    # 构建基于参数的筛选条件
+    # Build filter condition from parameters
     cli_params = {
         "query": query,
         "type": type,
@@ -266,24 +339,24 @@ def determine_filter_condition(filter_json, template_name, query, type, creator,
         "max_downloads": max_downloads
     }
 
-    # 过滤掉None值
+    # Remove None values
     cli_params = {k: v for k, v in cli_params.items() if v is not None}
 
-    # 如果没有参数，返回空条件
+    # Return empty dict if no parameters provided
     if not cli_params:
         return {}
 
-    # 转换为筛选条件
+    # Convert to filter condition
     return FilterParser.parse_cli_params(cli_params)
 
 
 def display_search_results(models: List[Dict[str, Any]], format_type: str, output_file: Optional[str] = None) -> None:
-    """显示搜索结果
+    """Display search results in the specified format.
 
     Args:
-        models: 模型列表
-        format_type: 输出格式 (table/json)
-        output_file: 输出文件路径
+        models: List of model data
+        format_type: Output format (table/json)
+        output_file: Output file path for saving results
     """
     if format_type == "json":
         result = json.dumps(models, indent=2)
@@ -291,11 +364,11 @@ def display_search_results(models: List[Dict[str, Any]], format_type: str, outpu
         if output_file:
             with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(result)
-            click.echo(f"结果已保存到 {output_file}")
+            click.echo(f"Results saved to {output_file}")
         else:
             click.echo(result)
     else:  # table
-        # 提取表格数据
+        # Extract table data
         table_data = []
         for model in models:
             row = [
@@ -308,99 +381,161 @@ def display_search_results(models: List[Dict[str, Any]], format_type: str, outpu
             ]
             table_data.append(row)
 
-        # 生成表格
-        headers = ["ID", "名称", "类型", "创作者", "下载次数", "评分"]
+        # Generate table
+        headers = ["ID", "Name", "Type", "Creator", "Downloads", "Rating"]
         table = tabulate(table_data, headers=headers, tablefmt="grid")
 
         if output_file:
             with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(table)
-            click.echo(f"结果已保存到 {output_file}")
+            click.echo(f"Results saved to {output_file}")
         else:
             click.echo(table)
 
 
 def interactive_filter_builder() -> Dict[str, Any]:
-    """交互式筛选条件构建器
-
+    """Interactive filter condition builder.
+    
+    Provides an interactive interface for building complex filter conditions.
+    
     Returns:
-        构建的筛选条件
+        Dict containing the built filter condition
     """
     conditions = []
-
-    click.echo("=== 交互式筛选条件构建器 ===")
-    click.echo("输入筛选条件，每次一个，输入空行完成")
-    click.echo("格式：字段 操作符 值")
-    click.echo("例如：type = LORA")
-    click.echo("可用操作符：= (等于), != (不等于), > (大于), >= (大于等于), < (小于), <= (小于等于)")
-    click.echo("按Ctrl+C取消")
-
+    available_fields = [
+        "name", "type", "creator.username", "tags", 
+        "modelVersions.baseModel", "stats.rating", 
+        "stats.downloadCount", "stats.favoriteCount",
+        "publishedAt", "updatedAt"
+    ]
+    
+    available_operators = {
+        "=": "eq",
+        "==": "eq",
+        "!=": "ne",
+        ">": "gt",
+        ">=": "ge",
+        "<": "lt",
+        "<=": "le",
+        "contains": "contains",
+        "startswith": "startswith",
+        "endswith": "endswith",
+        "regex": "regex",
+        "in": "in"
+    }
+    
+    # Print colored title and instructions
+    click.secho("=== Interactive Filter Builder ===", fg="green", bold=True)
+    click.echo("Enter filter conditions one by one. Submit empty line when finished.")
+    
+    # Display available fields
+    click.secho("Available fields:", fg="cyan")
+    for field in available_fields:
+        click.echo(f"  - {field}")
+    
+    # Display available operators
+    click.secho("Available operators:", fg="cyan")
+    click.echo("  - = (equals), != (not equals)")
+    click.echo("  - > (greater than), >= (greater or equal)")
+    click.echo("  - < (less than), <= (less or equal)")
+    click.echo("  - contains (string contains)")
+    click.echo("  - startswith (string starts with)")
+    click.echo("  - endswith (string ends with)")
+    click.echo("  - regex (regular expression match)")
+    
+    click.secho("Examples:", fg="yellow")
+    click.echo("  - name contains lora")
+    click.echo("  - stats.rating > 4.5")
+    click.echo("  - type = LORA")
+    click.echo("Press Ctrl+C to cancel")
+    
     try:
         while True:
-            condition_str = click.prompt("筛选条件", default="", show_default=False)
+            # Colored prompt
+            condition_str = click.prompt(click.style("Filter condition", fg="bright_blue"), 
+                                        default="", show_default=False)
             if not condition_str.strip():
                 break
 
-            # 解析条件
+            # Parse condition
             parts = condition_str.split(maxsplit=2)
             if len(parts) != 3:
-                click.echo("无效格式，请使用'字段 操作符 值'")
+                click.secho("Invalid format. Please use 'field operator value'", fg="red")
                 continue
 
             field, op_str, value = parts
 
-            # 映射操作符
-            op_map = {
-                "=": "eq",
-                "==": "eq",
-                "!=": "ne",
-                ">": "gt",
-                ">=": "ge",
-                "<": "lt",
-                "<=": "le",
-                "contains": "contains",
-                "startswith": "startswith",
-                "endswith": "endswith",
-                "in": "in"
-            }
+            # Check if field is in suggested fields
+            if field not in available_fields:
+                suggestion = ""
+                # Try to suggest a field if not in list
+                matches = difflib.get_close_matches(field, available_fields, n=1)
+                if matches:
+                    suggestion = f", did you mean '{matches[0]}'?"
+                
+                if click.confirm(click.style(
+                    f"Warning: '{field}' is not a common field{suggestion} Continue anyway?", 
+                    fg="yellow"), default=True):
+                    pass
+                else:
+                    continue
 
-            if op_str not in op_map:
-                click.echo(f"不支持的操作符: {op_str}")
+            # Check operator
+            if op_str not in available_operators:
+                click.secho(f"Unsupported operator: {op_str}", fg="red")
+                # Suggest valid operators
+                click.echo("Please use one of: " + ", ".join(list(available_operators.keys())[:8]))
                 continue
 
-            # 尝试转换值类型
+            # Try to convert value type
             try:
-                # 尝试转换为数字
+                # Try to convert to number
                 if value.isdigit():
                     value = int(value)
-                elif value.replace(".", "", 1).isdigit():
+                elif value.replace(".", "", 1).isdigit() and value.count(".") <= 1:
                     value = float(value)
             except (ValueError, TypeError):
                 pass
 
-            # 添加条件
+            # Add condition
             conditions.append({
                 "field": field,
-                "op": op_map[op_str],
+                "op": available_operators[op_str],
                 "value": value
             })
 
-            # 显示当前条件
-            click.echo(f"添加条件: {field} {op_str} {value}")
+            # Show the added condition with color
+            click.secho(f"✓ Added condition: ", fg="green", nl=False)
+            click.echo(f"{field} {op_str} {value}")
+            
+            # Show total condition count
+            click.secho(f"Total conditions: {len(conditions)}", fg="cyan")
 
     except (KeyboardInterrupt, EOFError):
-        click.echo("\n已取消")
+        click.echo("\nFilter building cancelled")
         return {}
 
-    # 如果没有条件，返回空字典
+    # If no conditions, return empty dict
     if not conditions:
+        click.secho("No filter conditions created", fg="yellow")
         return {}
 
-    # 如果有多个条件，询问逻辑关系
+    # If multiple conditions, ask for logical relationship
     if len(conditions) > 1:
-        logic = click.prompt("条件间的逻辑关系", type=click.Choice(["and", "or"]), default="and")
+        click.secho("Select logical relationship between conditions:", fg="bright_blue")
+        click.echo("AND - All conditions must be met")
+        click.echo("OR  - Any condition can be met")
+        logic = click.prompt("Logic", 
+                          type=click.Choice(["AND", "OR"], case_sensitive=False), 
+                          default="AND")
+        
+        # Convert to lowercase for API compatibility
+        logic = logic.lower()
+        click.secho(f"Selected {logic.upper()} logic", fg="green")
         return {logic: conditions}
     else:
+        # Only one condition, return directly
+        click.secho("Created 1 filter condition", fg="green")
         return conditions[0]
 
 
@@ -415,8 +550,16 @@ def interactive_filter_builder() -> Dict[str, Any]:
 @click.option("--username", help="创作者用户名")
 @click.option("--tag", help="标签")
 def search_models(
-    query, limit, page, type, sort, period, nsfw, username, tag
-):
+    query: Optional[str], 
+    limit: int, 
+    page: int, 
+    type: Optional[str], 
+    sort: Optional[str], 
+    period: Optional[str], 
+    nsfw: Optional[bool], 
+    username: Optional[str], 
+    tag: Optional[str]
+) -> None:
     """搜索Civitai上的模型"""
     try:
         config = get_config()

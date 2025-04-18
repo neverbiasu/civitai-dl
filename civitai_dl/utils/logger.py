@@ -1,105 +1,100 @@
-"""日志工具模块"""
+"""Logging utilities for Civitai Downloader.
+
+This module provides centralized logging configuration and utilities.
+"""
 
 import logging
-import logging.handlers
 import os
 import sys
-from typing import Optional
+from typing import Dict, Optional, Union
 
-# 全局日志格式
-LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+# Default logging configuration
+DEFAULT_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+DEFAULT_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+DEFAULT_LEVEL = logging.INFO
 
-# 日志级别映射
-LOG_LEVELS = {
-    "debug": logging.DEBUG,
-    "info": logging.INFO,
-    "warning": logging.WARNING,
-    "error": logging.ERROR,
-    "critical": logging.CRITICAL,
-}
-
-# 默认日志级别
-DEFAULT_LOG_LEVEL = logging.INFO
-
-# 是否已初始化
-_initialized = False
+# Cache loggers to avoid duplicate configuration
+_loggers: Dict[str, logging.Logger] = {}
 
 
 def setup_logging(
-    level: int = DEFAULT_LOG_LEVEL,
+    level: int = DEFAULT_LEVEL,
     log_file: Optional[str] = None,
-    max_bytes: int = 10485760,  # 10MB
-    backup_count: int = 3,
+    format_str: str = DEFAULT_FORMAT,
+    date_format: str = DEFAULT_DATE_FORMAT,
 ) -> None:
-    """
-    初始化日志系统
-
+    """Set up global logging configuration.
+    
     Args:
-        level: 日志级别
-        log_file: 日志文件路径
-        max_bytes: 单个日志文件最大字节数
-        backup_count: 保留的日志文件数量
+        level: Console log level
+        log_file: Optional log file path
+        format_str: Log format string
+        date_format: Date format string
     """
-    global _initialized
-
-    if _initialized:
-        # 更新全局日志级别
-        logging.getLogger().setLevel(level)
-        return
-
-    # 创建根日志记录器
+    # Create root logger
     root_logger = logging.getLogger()
-    root_logger.setLevel(level)
-
-    # 创建输出到控制台的处理器
-    console = logging.StreamHandler(sys.stdout)
-    console.setFormatter(logging.Formatter(LOG_FORMAT))
+    root_logger.setLevel(logging.DEBUG)
+    
+    # Clear existing handlers
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+    
+    # Create formatter
+    formatter = logging.Formatter(format_str, date_format)
+    
+    # Add console handler
+    console = logging.StreamHandler(stream=sys.stdout)
+    console.setLevel(level)
+    console.setFormatter(formatter)
     root_logger.addHandler(console)
-
-    # 如果提供了日志文件路径，创建文件处理器
+    
+    # Add file handler if specified
     if log_file:
-        # 确保日志目录存在
+        # Create directory if needed
         log_dir = os.path.dirname(log_file)
         if log_dir:
             os.makedirs(log_dir, exist_ok=True)
-
-        # 创建轮换日志文件处理器
-        file_handler = logging.handlers.RotatingFileHandler(
-            log_file, maxBytes=max_bytes, backupCount=backup_count, encoding="utf-8"
-        )
-        file_handler.setFormatter(logging.Formatter(LOG_FORMAT))
+            
+        file_handler = logging.FileHandler(log_file, encoding='utf-8')
+        file_handler.setLevel(logging.DEBUG)  # File gets more detailed logs
+        file_handler.setFormatter(formatter)
         root_logger.addHandler(file_handler)
-
-    # 设置第三方库的日志级别
+    
+    # Reduce noise from third-party libraries
     logging.getLogger("requests").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
 
-    _initialized = True
-
 
 def get_logger(name: str) -> logging.Logger:
-    """
-    获取带有指定名称的日志记录器
-
+    """Get a logger with the specified name.
+    
     Args:
-        name: 日志记录器名称
-
+        name: Logger name (usually __name__)
+        
     Returns:
-        配置好的日志记录器实例
+        Configured logger instance
     """
-    # 如果日志系统尚未初始化，进行初始化
-    if not _initialized:
-        setup_logging()
+    if name in _loggers:
+        return _loggers[name]
+    
+    logger = logging.getLogger(name)
+    _loggers[name] = logger
+    return logger
 
-    return logging.getLogger(name)
 
-
-def set_log_level(level: str) -> None:
-    """
-    设置全局日志级别
-
+def set_log_level(level: Union[int, str]) -> None:
+    """Set log level for all loggers.
+    
     Args:
-        level: 日志级别名称 ('debug', 'info', 'warning', 'error', 'critical')
+        level: Log level as integer or string name
     """
-    level_value = LOG_LEVELS.get(level.lower(), DEFAULT_LOG_LEVEL)
-    setup_logging(level_value)
+    # Convert string level to int if needed
+    if isinstance(level, str):
+        level = getattr(logging, level.upper())
+    
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+    
+    # Update existing handlers
+    for handler in root_logger.handlers:
+        handler.setLevel(level)

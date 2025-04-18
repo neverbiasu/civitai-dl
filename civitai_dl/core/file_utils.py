@@ -1,207 +1,217 @@
+"""File utility functions for Civitai Downloader.
+
+This module provides file handling utilities including filename sanitization,
+path management, and file conflict resolution.
+"""
+
 import os
 import re
 import logging
 import hashlib
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any, List, Union
 from urllib.parse import unquote
 
-# 配置日志
-logger = logging.getLogger(__name__)
+from civitai_dl.utils.logger import get_logger
 
-# 文件名非法字符（Windows、macOS、Linux通用）
+logger = get_logger(__name__)
+
+# Constants for file handling
 INVALID_CHARS = r'[<>:"/\\|?*\x00-\x1F]'
+MAX_FILENAME_LENGTH = 200
 
-# 将 config_manager 的导入移到函数内部，避免循环导入
 
-
-def get_download_location(model_info: dict, version_info: dict,
-                          ask_location: bool = None) -> str:
-    """确定下载位置
+def get_download_location(model_info: Dict[str, Any], version_info: Dict[str, Any],
+                          ask_location: Optional[bool] = None) -> str:
+    """Determine download location based on model information.
 
     Args:
-        model_info: 模型信息
-        version_info: 版本信息
-        ask_location: 是否询问下载位置，覆盖配置设置
+        model_info: Model information
+        version_info: Version information
+        ask_location: Whether to ask for download location, overrides config
 
     Returns:
-        下载目录路径
+        Download directory path
     """
-    # 延迟导入 config_manager，避免循环导入
-    from .config import config_manager
+    # Import config_manager lazily to avoid circular imports
+    from civitai_dl.utils.config import get_download_dir, add_recent_directory, get_config_value
 
-    # 优先使用参数设置，否则使用配置
+    # Prioritize parameter setting, otherwise use config
     if ask_location is None:
-        ask_location = config_manager.get("ask_download_location", False)
+        ask_location = get_config_value("ask_download_location", False)
 
-    # 如果设置询问位置，执行终端询问流程
+    # If asking for location is enabled, execute terminal query flow
     if ask_location:
-        # 获取默认位置建议
         model_type = model_info.get("type")
-        default_dir = config_manager.get_download_dir(model_type)
-
-        # 显示最近目录
-        recent_dirs = config_manager.get_recent_directories()
+        default_dir = get_download_dir(model_type)
+        recent_dirs = get_config_value("recent_directories", [])
+        
         if recent_dirs:
-            print("最近使用的下载目录:")
+            print("Recent download directories:")
             for i, directory in enumerate(recent_dirs):
                 print(f"{i+1}. {directory}")
 
-        # 询问用户
+        # Ask user for directory
         while True:
-            response = input(f"请输入下载目录 [默认: {default_dir}]，输入数字选择最近目录，或直接回车使用默认目录: ")
+            response = input(f"Enter download directory [default: {default_dir}], enter number for recent dirs, or press Enter for default: ")
 
-            # 直接回车，使用默认目录
+            # Empty input, use default
             if not response.strip():
                 selected_dir = default_dir
                 break
 
-            # 尝试解析为数字，选择最近目录
+            # Try to parse as number to select recent directory
             if response.isdigit() and recent_dirs:
                 index = int(response) - 1
                 if 0 <= index < len(recent_dirs):
                     selected_dir = recent_dirs[index]
                     break
                 else:
-                    print(f"无效的选择，请输入1-{len(recent_dirs)}之间的数字")
+                    print(f"Invalid selection, please enter 1-{len(recent_dirs)}")
                     continue
 
-            # 解析为路径
+            # Parse as path
             if os.path.isabs(response):
                 selected_dir = response
                 break
             else:
-                # 相对路径转为绝对路径
+                # Convert relative path to absolute
                 selected_dir = os.path.abspath(response)
                 break
 
-        # 创建目录
+        # Create directory and add to recent directories
         os.makedirs(selected_dir, exist_ok=True)
-
-        # 添加到最近目录
-        config_manager.add_recent_directory(selected_dir)
-
+        add_recent_directory(selected_dir)
         return selected_dir
 
-    # 不询问，使用系统设置的目录
+    # Don't ask, use system setting
     model_type = model_info.get("type")
-    return config_manager.get_download_dir(model_type)
+    return get_download_dir(model_type)
 
 
 def sanitize_filename(filename: str) -> str:
-    """净化文件名，移除非法字符
+    """Sanitize filename by removing illegal characters.
+
+    Ensures filenames are safe for all operating systems by replacing illegal characters,
+    trimming to legal length, and ensuring non-empty names.
 
     Args:
-        filename: 原始文件名
+        filename: Original filename to sanitize
 
     Returns:
-        清理后的文件名
+        Cleaned filename safe for all operating systems
     """
-    # 替换非法字符
+    if not filename:
+        return "unnamed_file"
+        
+    # Replace invalid characters with underscores
     sanitized = re.sub(INVALID_CHARS, "_", filename)
 
-    # 修剪文件名长度（Windows路径最大长度为260个字符，预留一些空间给路径）
-    max_length = 200
-    if len(sanitized) > max_length:
-        # 保留扩展名
+    # Trim if filename exceeds maximum length (preserving extension)
+    if len(sanitized) > MAX_FILENAME_LENGTH:
         name, ext = os.path.splitext(sanitized)
-        sanitized = name[:max_length - len(ext)] + ext
+        sanitized = name[:MAX_FILENAME_LENGTH - len(ext)] + ext
+        logger.debug(f"Truncated filename to {MAX_FILENAME_LENGTH} characters")
 
-    # 处理以点或空格开头/结尾的情况
+    # Remove leading/trailing dots and spaces that cause issues
     sanitized = sanitized.strip(". ")
 
-    # 确保文件名不为空
+    # Ensure filename is not empty after cleaning
     if not sanitized:
         sanitized = "unnamed_file"
-
+        
+    # Log only if the filename was changed
+    if sanitized != filename:
+        logger.debug(f"Sanitized filename: '{filename}' → '{sanitized}'")
+    
     return sanitized
 
 
-def get_filename_from_model(model_info: dict, version_info: dict,
+def get_filename_from_model(model_info: Dict[str, Any], version_info: Dict[str, Any],
                             original_filename: Optional[str] = None) -> str:
-    """从模型信息生成文件名
+    """Generate a filename from model information.
 
     Args:
-        model_info: 模型信息
-        version_info: 版本信息
-        original_filename: 原始文件名（如果有）
+        model_info: Model information dictionary
+        version_info: Version information dictionary
+        original_filename: Original filename (if available)
 
     Returns:
-        生成的文件名
+        Generated and sanitized filename
     """
-    # 延迟导入 config_manager，避免循环导入
-    from .config import config_manager
+    # Import config lazily to avoid circular imports
+    from civitai_dl.utils.config import get_config_value
 
-    # 如果配置设置使用原始文件名且提供了原始文件名，则使用它
-    if config_manager.get("use_original_filename", True) and original_filename:
+    # If configured to use original filename and it's provided, use it
+    if get_config_value("use_original_filename", True) and original_filename:
         return sanitize_filename(original_filename)
 
-    # 否则构建信息丰富的文件名
+    # Otherwise build an informative filename
     model_name = model_info.get("name", "unknown_model")
     model_type = model_info.get("type", "unknown_type")
     creator = model_info.get("creator", {}).get("username", "unknown_creator")
     version_name = version_info.get("name", "")
 
-    # 构建文件名
+    # Construct filename
     if version_name:
         filename = f"{model_name}-{model_type}-{creator}-{version_name}"
     else:
         filename = f"{model_name}-{model_type}-{creator}"
 
-    # 净化文件名
+    # Sanitize filename
     return sanitize_filename(filename)
 
 
-def extract_filename_from_headers(headers: dict) -> Optional[str]:
-    """从HTTP响应头中提取文件名
+def extract_filename_from_headers(headers: Dict[str, str]) -> Optional[str]:
+    """Extract filename from HTTP response headers.
 
     Args:
-        headers: HTTP响应头
+        headers: HTTP response headers dictionary
 
     Returns:
-        文件名，如果无法提取则返回None
+        Extracted filename or None if not found
     """
-    # 尝试从Content-Disposition提取
+    # Try to extract from Content-Disposition header
     if 'Content-Disposition' in headers:
         content_disposition = headers['Content-Disposition']
         filename_match = re.search(r'filename=["\']?([^"\';\n]+)', content_disposition)
 
         if filename_match:
             filename = filename_match.group(1)
-            # 解码URL编码
+            # Decode URL encoding
             filename = unquote(filename)
-            # 处理引号
+            # Handle quotes
             if filename.startswith('"') and filename.endswith('"'):
                 filename = filename[1:-1]
             return filename
 
-    # 尝试从Content-Type推测扩展名
+    # Could not extract filename
     return None
 
 
 def resolve_file_conflict(filepath: str, action: Optional[str] = None) -> Tuple[str, bool]:
-    """解决文件冲突
+    """Resolve file conflicts when a file already exists.
 
     Args:
-        filepath: 文件路径
-        action: 冲突处理方式 (overwrite/rename/skip)，None表示使用配置
+        filepath: File path that might have a conflict
+        action: Conflict resolution action (overwrite/rename/skip), None to use config
 
     Returns:
-        新的文件路径和是否跳过下载的标志
+        Tuple of (new_filepath, skip_flag) where skip_flag indicates if download should be skipped
     """
     if not os.path.exists(filepath):
         return filepath, False
 
-    # 如果未指定行动，使用配置默认值
+    # If no action specified, use config default
     if action is None:
-        # 延迟导入 config_manager，避免循环导入
-        from .config import config_manager
-        action = config_manager.get("file_exists_action", "ask")
+        # Import config lazily to avoid circular imports
+        from civitai_dl.utils.config import get_config_value
+        action = get_config_value("file_exists_action", "ask")
 
-    # 询问用户
+    # Ask user interactively
     if action == "ask":
-        print(f"文件已存在: {filepath}")
+        print(f"File already exists: {filepath}")
         while True:
-            choice = input("请选择处理方式: [o]覆盖 [r]重命名 [s]跳过: ").lower()
+            choice = input("Choose action: [o]verwrite [r]ename [s]kip: ").lower()
             if choice in ('o', 'overwrite'):
                 action = "overwrite"
                 break
@@ -212,15 +222,15 @@ def resolve_file_conflict(filepath: str, action: Optional[str] = None) -> Tuple[
                 action = "skip"
                 break
             else:
-                print("无效选择，请重试")
+                print("Invalid choice, please try again")
 
-    # 处理冲突
+    # Handle conflict based on action
     if action == "overwrite":
         return filepath, False
     elif action == "skip":
         return filepath, True
     elif action == "rename":
-        # 自动生成新文件名
+        # Auto-generate new filename
         directory, filename = os.path.split(filepath)
         name, ext = os.path.splitext(filename)
 
@@ -234,49 +244,49 @@ def resolve_file_conflict(filepath: str, action: Optional[str] = None) -> Tuple[
 
             index += 1
     else:
-        # 默认重命名
+        # Default to rename if action is invalid
         return resolve_file_conflict(filepath, "rename")
 
 
-def detect_duplicate_file(file_path: str, known_hashes: Optional[dict] = None) -> Optional[str]:
-    """检测是否有重复文件（基于哈希）
+def detect_duplicate_file(file_path: str, known_hashes: Optional[Dict[str, str]] = None) -> Optional[str]:
+    """Detect duplicate files based on content hash.
 
     Args:
-        file_path: 要检查的文件路径
-        known_hashes: 已知文件的哈希值字典 {hash: file_path}
+        file_path: Path to file to check
+        known_hashes: Dictionary of known file hashes {hash: file_path}
 
     Returns:
-        如果是重复文件，返回原始文件的路径；否则返回None
+        Path to duplicate file if found, None otherwise
     """
     if not known_hashes or not os.path.exists(file_path):
         return None
 
     try:
-        # 计算文件哈希
+        # Calculate file hash
         file_hash = calculate_file_hash(file_path)
 
-        # 检查是否在已知哈希中
+        # Check if in known hashes
         if file_hash in known_hashes:
             return known_hashes[file_hash]
     except Exception as e:
-        logger.warning(f"计算文件哈希失败: {str(e)}")
+        logger.warning(f"Failed to calculate file hash: {str(e)}")
 
     return None
 
 
 def calculate_file_hash(file_path: str) -> str:
-    """计算文件的SHA-256哈希值
+    """Calculate SHA-256 hash of a file.
 
     Args:
-        file_path: 文件路径
+        file_path: Path to file
 
     Returns:
-        文件的SHA-256哈希值
+        SHA-256 hash as hex string
     """
     h = hashlib.sha256()
 
     with open(file_path, 'rb') as f:
-        # 读取文件块并更新哈希
+        # Read file in chunks to handle large files efficiently
         chunk = f.read(8192)
         while chunk:
             h.update(chunk)
@@ -286,26 +296,26 @@ def calculate_file_hash(file_path: str) -> str:
 
 
 def verify_path_exists(path: str) -> bool:
-    """验证路径是否有效并可以创建
+    """Verify a path exists or can be created.
 
     Args:
-        path: 要验证的路径
+        path: Path to verify
 
     Returns:
-        路径是否有效
+        True if path is valid and accessible, False otherwise
     """
     try:
-        # 如果路径已存在且是目录，则有效
+        # If path already exists and is a directory, it's valid
         if os.path.exists(path) and os.path.isdir(path):
             return True
 
-        # 如果不存在，尝试创建
+        # If it doesn't exist, try to create it
         if not os.path.exists(path):
             os.makedirs(path, exist_ok=True)
             return True
 
-        # 如果存在但不是目录，则无效
+        # If it exists but is not a directory, it's invalid
         return False
     except Exception as e:
-        logger.error(f"验证路径失败: {str(e)}")
+        logger.error(f"Failed to verify path: {str(e)}")
         return False

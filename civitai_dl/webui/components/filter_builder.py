@@ -1,497 +1,348 @@
-import gradio as gr
+"""Filter builder component for the Civitai Downloader WebUI.
+
+This module provides a UI component for building complex filter conditions
+in the web interface with interactive controls.
+"""
+
 import json
-import logging
-from typing import Dict, List, Any, Tuple
+from typing import Dict, Any, List, Tuple, Callable, Optional, Union
 
-from ...core.filter import FilterManager, FilterParser, FilterCondition
+import gradio as gr
 
-# 配置日志
-logger = logging.getLogger(__name__)
+from civitai_dl.api.client import CivitaiAPI
+from civitai_dl.core.filter import FilterManager, FilterCondition
+from civitai_dl.utils.logger import get_logger
 
-# 创建过滤管理器实例
-filter_manager = FilterManager()
+logger = get_logger(__name__)
 
 
 class FilterBuilder:
-    """筛选条件构建器组件"""
-
-    def __init__(self):
-        """初始化筛选构建器"""
-        self.templates = filter_manager.list_templates()
-        self.operators = [
-            "等于 (=)", "不等于 (!=)", "大于 (>)", "大于等于 (>=)",
-            "小于 (<)", "小于等于 (<=)", "包含", "以...开头", "以...结尾",
-            "匹配正则表达式"
-        ]
-        self.op_map = {
-            "等于 (=)": "eq",
-            "不等于 (!=)": "ne",
-            "大于 (>)": "gt",
-            "大于等于 (>=)": "ge",
-            "小于 (<)": "lt",
-            "小于等于 (<=)": "le",
-            "包含": "contains",
-            "以...开头": "startswith",
-            "以...结尾": "endswith",
-            "匹配正则表达式": "regex",
-        }
-        self.common_fields = [
-            "name", "type", "creator.username", "tags",
-            "modelVersions.baseModel", "stats.rating",
-            "stats.downloadCount", "publishedAt"
-        ]
-
-        # 存储当前条件列表和最终筛选条件
-        self.current_conditions = []
-        self.final_filter = {}
-        self.filter_condition = {"logic": "AND", "conditions": []}
-        self.api = None
-        self.on_preview_callback = None
-        self.on_apply_callback = None
-
-    def create_ui(self) -> Tuple:
-        """创建筛选条件构建器UI
-
+    """Interactive filter builder component for the web UI.
+    
+    Provides UI elements and logic for creating, saving, and loading complex
+    filter conditions for searching models.
+    """
+    
+    def __init__(self) -> None:
+        """Initialize the filter builder with a filter manager."""
+        self.filter_manager = FilterManager()
+        self.templates = self.filter_manager.list_templates()
+        self.current_condition: Dict[str, Any] = {}
+        self.temp_conditions: List[Dict[str, Any]] = []
+        
+    def create_ui(self) -> Tuple[gr.Accordion, gr.JSON, gr.Button, gr.Button, gr.Button]:
+        """Create the filter builder UI components.
+        
         Returns:
-            (筛选构建区, 结果输出, 应用按钮, 保存按钮, 加载按钮)
+            Tuple containing:
+            - filter_accordion: Main accordion container
+            - current_filter: JSON component for the current filter
+            - apply_filter_btn: Button to apply the filter
+            - save_template_btn: Button to save the current filter as a template
+            - load_template_btn: Button to load a template
         """
-        with gr.Accordion("高级筛选条件构建器", open=False) as filter_accordion:
-            with gr.Tabs() as _filter_tabs:
-                with gr.Tab("条件构建器"):
-                    with gr.Row():
-                        _field = gr.Dropdown(
-                            choices=self.common_fields,
-                            label="字段",
-                            info="选择要筛选的字段"
-                        )
-                        _custom_field = gr.Textbox(
-                            label="自定义字段",
-                            placeholder="例如: stats.favoriteCount"
-                        )
-
-                    with gr.Row():
-                        _operator = gr.Dropdown(
-                            choices=self.operators,
-                            label="操作符",
-                            info="选择筛选条件的操作符"
-                        )
-
-                    with gr.Row():
-                        _value = gr.Textbox(
-                            label="值",
-                            placeholder="例如: LORA"
-                        )
-
-                    with gr.Row():
-                        _add_btn = gr.Button("添加条件", variant="primary")
-
-                    _condition_list = gr.JSON(
-                        label="当前筛选条件", value=self.filter_condition
-                    )
-
-                    with gr.Row():
-                        _logic_op = gr.Radio(
-                            choices=["AND", "OR"],
-                            value="AND",
-                            label="组合逻辑",
-                        )
-                        _apply_logic_btn = gr.Button("应用组合逻辑")
-
-                with gr.Tab("JSON 编辑器"):
-                    _json_input = gr.JSON(label="直接编辑JSON条件")
-                    with gr.Row():
-                        _validate_json_btn = gr.Button("验证JSON")
-                        _load_json_btn = gr.Button("加载JSON到构建器")
-
-                with gr.Tab("模板管理"):
-                    _template_dropdown = gr.Dropdown(
-                        choices=list(self.templates.keys()),
-                        label="选择模板",
-                        info="选择一个保存的筛选模板"
-                    )
-
-                    with gr.Row():
-                        load_template_btn = gr.Button("加载模板", variant="primary")
-                        _delete_template_btn = gr.Button("删除模板", variant="stop")
-
-                    with gr.Row():
-                        _template_name = gr.Textbox(
-                            label="新模板名称",
-                            placeholder="例如: 高质量LORA"
-                        )
-                        save_template_btn = gr.Button("保存当前条件为模板", variant="secondary")
-
-            # 当前筛选条件显示区域
-            current_filter = gr.Textbox(
-                label="当前筛选条件",
-                placeholder="还没有设置筛选条件",
-                info="这是当前将被应用的筛选条件",
-                lines=5,
-                interactive=False
-            )
-
-            # 预览结果区域
-            _preview_result = gr.Textbox(
-                label="预览效果",
-                placeholder="点击'预览效果'按钮查看筛选结果",
-                interactive=False
-            )
-
+        with gr.Accordion("高级筛选", open=False) as filter_accordion:
             with gr.Row():
-                gr.Button("预览效果")
-                apply_btn = gr.Button("应用筛选条件", variant="primary")
-                _reset_btn = gr.Button("重置", variant="stop")
-
-        # 存储UI组件引用
-        self.ui_components = {
-            "accordion": filter_accordion,
-            "tabs": _filter_tabs,
-            "field": _field,
-            "custom_field": _custom_field,
-            "operator": _operator,
-            "value": _value,
-            "add_btn": _add_btn,
-            "condition_list": _condition_list,
-            "logic_op": _logic_op,
-            "apply_logic_btn": _apply_logic_btn,
-            "json_input": _json_input,
-            "validate_json_btn": _validate_json_btn,
-            "load_json_btn": _load_json_btn,
-            "template_dropdown": _template_dropdown,
-            "load_template_btn": load_template_btn,
-            "delete_template_btn": _delete_template_btn,
-            "template_name": _template_name,
-            "save_template_btn": save_template_btn,
-            "preview_result": _preview_result,
-            "preview_btn": gr.Button("预览效果"),
-            "apply_filter_btn": apply_btn,
-            "reset_btn": _reset_btn,
-        }
-
-        # 返回需要外部访问的组件
-        return filter_accordion, current_filter, apply_btn, save_template_btn, load_template_btn
-
-    def setup_callbacks(self, components: Tuple, api, on_preview=None, on_apply=None) -> None:
-        """设置组件的回调函数
-
+                with gr.Column(scale=1):
+                    # Field selection components
+                    field_dropdown = gr.Dropdown(
+                        choices=[
+                            "name", "type", "creator.username", "tags",
+                            "modelVersions.baseModel", "stats.rating", 
+                            "stats.downloadCount", "stats.favoriteCount",
+                            "publishedAt", "updatedAt"
+                        ],
+                        label="字段",
+                        value="name"
+                    )
+                    
+                    operator_dropdown = gr.Dropdown(
+                        choices=[
+                            "eq (equals)", "ne (not equals)",
+                            "gt (greater than)", "ge (greater or equal)",
+                            "lt (less than)", "le (less or equal)",
+                            "contains (contains)", "startswith (starts with)", 
+                            "endswith (ends with)", "regex (regex match)"
+                        ],
+                        label="Operator",
+                        value="contains (contains)"
+                    )
+                    
+                    value_input = gr.Textbox(label="Value")
+                    
+                    logic_radio = gr.Radio(
+                        choices=["AND", "OR"],
+                        label="Logic Operator",
+                        value="AND"
+                    )
+                    
+                    add_condition_btn = gr.Button("Add Condition")
+                    
+                    # Template management
+                    template_name = gr.Textbox(label="Template Name")
+                    
+                    template_list = gr.Dropdown(
+                        choices=list(self.templates.keys()),
+                        label="Load Template"
+                    )
+                    
+                    with gr.Row():
+                        save_template_btn = gr.Button("Save Template")
+                        load_template_btn = gr.Button("Load Template")
+                
+                with gr.Column(scale=1):
+                    # Current filter display
+                    current_filter = gr.JSON(
+                        label="Current Filter", 
+                        value={}
+                    )
+                    
+                    conditions_list = gr.Dataframe(
+                        headers=["Field", "Operator", "Value"],
+                        label="Current Conditions",
+                        interactive=False,
+                        value=[]
+                    )
+                    
+                    preview_output = gr.Textbox(
+                        label="Preview", 
+                        interactive=False
+                    )
+                    
+                    with gr.Row():
+                        clear_btn = gr.Button("Clear Filter")
+                        preview_btn = gr.Button("Preview Results")
+                    
+                    apply_filter_btn = gr.Button("Apply Filter", variant="primary")
+            
+        return filter_accordion, current_filter, apply_filter_btn, save_template_btn, load_template_btn
+    
+    def setup_callbacks(
+        self, 
+        components: Tuple[gr.Accordion, gr.JSON, gr.Button, gr.Button, gr.Button],
+        api: CivitaiAPI,
+        on_preview: Optional[Callable[[Dict[str, Any]], str]] = None,
+        on_apply: Optional[Callable[[Dict[str, Any]], Any]] = None
+    ) -> None:
+        """Set up the callbacks for the filter builder components.
+        
         Args:
-            components: 从create_ui返回的组件元组
-            api: API客户端实例
-            on_preview: 预览回调函数
-            on_apply: 应用筛选条件回调函数
+            components: UI components returned by create_ui()
+            api: API client for previewing filter results
+            on_preview: Callback function for filter preview
+            on_apply: Callback function for applying the filter
         """
-        filter_accordion, current_filter, apply_btn, save_template_btn, load_template_btn = components
-
-        # 获取其他需要绑定的组件
-        tabs = filter_accordion.children[0]
-        simple_tab = tabs.children[0]
-        compound_tab = tabs.children[1]
-        json_tab = tabs.children[2]
-        template_tab = tabs.children[3]
-
-        # 简单条件标签页内的组件
-        field = simple_tab.children[0].children[0].children[0]
-        custom_field = simple_tab.children[0].children[0].children[1]
-        operator = simple_tab.children[0].children[1].children[0]
-        value = simple_tab.children[0].children[2].children[0]
-        add_btn = simple_tab.children[1].children[0]
-
-        # 复合条件标签页内的组件
-        condition_list = compound_tab.children[0]
-        logic_op = compound_tab.children[1].children[0]
-        clear_btn = compound_tab.children[2].children[0]
-        apply_logic_btn = compound_tab.children[2].children[1]
-
-        # JSON编辑标签页内的组件
-        json_input = json_tab.children[0]
-        validate_json_btn = json_tab.children[1].children[0]
-        load_json_btn = json_tab.children[1].children[1]
-
-        # 模板标签页内的组件
-        template_dropdown = template_tab.children[0]
-        load_template_btn = template_tab.children[1].children[0]
-        delete_template_btn = template_tab.children[1].children[1]
-        template_name = template_tab.children[2].children[0]
-        save_template_btn = template_tab.children[2].children[1]
-
-        # 底部操作区内的组件
-        preview_result = filter_accordion.children[2]
-        preview_btn = filter_accordion.children[3].children[0]
-        reset_btn = filter_accordion.children[3].children[2]
-
-        # 添加简单条件回调
-        def on_add_condition():
-            field_value = custom_field.value if custom_field.value else field.value
-            op_value = self.op_map.get(operator.value, "eq")
-
-            # 转换值类型（尝试转为数字）
-            try:
-                if value.value.isdigit():
-                    val = int(value.value)
-                elif value.value.replace(".", "", 1).isdigit() and value.value.count(".") <= 1:
-                    val = float(value.value)
-                else:
-                    val = value.value
-            except (ValueError, AttributeError):
-                val = value.value
-
-            # 创建条件
-            condition = {
-                "field": field_value,
-                "op": op_value,
-                "value": val
-            }
-
-            # 添加到条件列表
-            self.current_conditions.append(condition)
-
-            # 更新显示
-            condition_desc = self._format_conditions(self.current_conditions)
-
-            # 清空输入框
-            return condition_desc, "", "", ""
-
-        add_btn.click(
-            fn=on_add_condition,
-            inputs=[],
-            outputs=[condition_list, custom_field, field, value]
-        )
-
-        # 清空条件回调
-        def on_clear_conditions():
-            self.current_conditions = []
-            self.final_filter = {}
-            return "", self._format_filter(self.final_filter)
-
-        clear_btn.click(
-            fn=on_clear_conditions,
-            inputs=[],
-            outputs=[condition_list, current_filter]
-        )
-
-        # 应用逻辑关系回调
-        def on_apply_logic():
-            if not self.current_conditions:
-                return "还没有条件", "{}"
-
-            # 确定逻辑操作符
-            logic = "and" if logic_op.value.startswith("AND") else "or"
-
-            # 创建筛选条件
-            if len(self.current_conditions) == 1:
-                self.final_filter = self.current_conditions[0]
-            else:
-                self.final_filter = {logic: self.current_conditions}
-
-            # 格式化显示
-            return self._format_conditions(self.current_conditions), self._format_filter(self.final_filter)
-
-        apply_logic_btn.click(
-            fn=on_apply_logic,
-            inputs=[],
-            outputs=[condition_list, current_filter]
-        )
-
-        # 验证JSON回调
-        def on_validate_json():
-            try:
-                json_data = json.loads(json_input.value)
-                FilterCondition(json_data)  # 验证格式
-                return "JSON格式有效✅"
-            except Exception as e:
-                return f"JSON格式无效❌: {str(e)}"
-
-        validate_json_btn.click(
-            fn=on_validate_json,
-            inputs=[],
-            outputs=[preview_result]
-        )
-
-        # 加载JSON回调
-        def on_load_json():
-            try:
-                json_data = json.loads(json_input.value)
-                FilterCondition(json_data)  # 验证格式
-                self.final_filter = json_data
-                return self._format_filter(self.final_filter)
-            except Exception as e:
-                return f"加载JSON失败: {str(e)}"
-
-        load_json_btn.click(
-            fn=on_load_json,
-            inputs=[],
-            outputs=[current_filter]
-        )
-
-        # 加载模板回调
-        def on_load_template():
-            template_name = template_dropdown.value
-            if not template_name:
-                return "请先选择一个模板", current_filter.value
-
-            template = filter_manager.get_template(template_name)
-            if not template:
-                return f"模板 '{template_name}' 不存在", current_filter.value
-
-            self.final_filter = template
-            return f"已加载模板: {template_name}✅", self._format_filter(self.final_filter)
-
-        load_template_btn.click(
-            fn=on_load_template,
-            inputs=[],
-            outputs=[preview_result, current_filter]
-        )
-
-        # 删除模板回调
-        def on_delete_template():
-            template_name = template_dropdown.value
-            if not template_name:
-                return "请先选择一个模板", list(filter_manager.list_templates().keys())
-
-            success = filter_manager.remove_template(template_name)
-            self.templates = filter_manager.list_templates()
-
-            if success:
-                return f"模板 '{template_name}' 已删除✅", list(self.templates.keys())
-            else:
-                return f"删除模板 '{template_name}' 失败❌", list(self.templates.keys())
-
-        delete_template_btn.click(
-            fn=on_delete_template,
-            inputs=[],
-            outputs=[preview_result, template_dropdown]
-        )
-
-        # 保存模板回调
-        def on_save_template():
-            if not template_name.value:
-                return "请输入模板名称"
-
-            if not self.final_filter:
-                return "请先创建筛选条件"
-
-            success = filter_manager.add_template(template_name.value, self.final_filter)
-            self.templates = filter_manager.list_templates()
-
-            if success:
-                return f"模板 '{template_name.value}' 保存成功✅", "", list(self.templates.keys())
-            else:
-                return "保存模板失败❌", template_name.value, list(self.templates.keys())
-
-        save_template_btn.click(
-            fn=on_save_template,
-            inputs=[],
-            outputs=[preview_result, template_name, template_dropdown]
-        )
-
-        # 预览效果回调
-        def on_preview_filter():
-            if not self.final_filter:
-                return "请先创建筛选条件"
-
-            # 如果提供了自定义预览回调，则使用它
-            if on_preview:
-                return on_preview(self.final_filter)
-
-            # 否则执行默认预览
-            try:
-                # 将筛选条件转换为API参数
-                api_params = FilterParser.to_api_params(self.final_filter)
-                api_params["limit"] = 1  # 只取一条进行预览
-
-                # 调用API
-                response = api.get_models(api_params)
-                count = response.get("metadata", {}).get("totalItems", 0)
-
-                # 返回结果预览
-                return f"符合条件的模型数量: {count}"
-            except Exception as e:
-                return f"预览失败: {str(e)}"
-
-        preview_btn.click(
-            fn=on_preview_filter,
-            inputs=[],
-            outputs=[preview_result]
-        )
-
-        # 重置回调
-        def on_reset():
-            self.current_conditions = []
-            self.final_filter = {}
-            return "", "", "", "", "", "{}"
-
-        reset_btn.click(
-            fn=on_reset,
-            inputs=[],
-            outputs=[field, custom_field, value, condition_list, preview_result, current_filter]
-        )
-
-        # 应用筛选条件回调
-        if on_apply:
-            apply_btn.click(
-                fn=lambda: on_apply(self.final_filter),
-                inputs=[],
-                outputs=[]
-            )
-
-    def _format_conditions(self, conditions: List[Dict[str, Any]]) -> str:
-        """格式化条件列表为可读字符串
-
-        Args:
-            conditions: 条件列表
-
-        Returns:
-            格式化后的字符串
-        """
-        if not conditions:
-            return "还没有条件"
-
-        # 反向映射操作符
-        rev_op_map = {v: k for k, v in self.op_map.items()}
-
-        result = []
-        for i, cond in enumerate(conditions):
-            field = cond.get("field", "")
-            op = rev_op_map.get(cond.get("op", "eq"), "=")
-            value = cond.get("value", "")
-
-            result.append(f"{i+1}. {field} {op} {value}")
-
-        return "\n".join(result)
-
-    def _format_filter(self, filter_condition: Dict[str, Any]) -> str:
-        """格式化筛选条件为JSON字符串
-
-        Args:
-            filter_condition: 筛选条件字典
-
-        Returns:
-            格式化的JSON字符串
-        """
-        if not filter_condition:
-            return "{}"
-
+        filter_accordion, current_filter, apply_filter_btn, save_template_btn, load_template_btn = components
+        
+        # Find components within the accordion
+        field_dropdown = None
+        operator_dropdown = None
+        value_input = None
+        logic_radio = None
+        add_condition_btn = None
+        conditions_list = None
+        template_name = None
+        template_list = None
+        clear_btn = None
+        preview_btn = None
+        preview_output = None  # Add missing variable
+        
+        # Extract components from accordion
         try:
-            return json.dumps(filter_condition, indent=2, ensure_ascii=False)
+            for component in filter_accordion.children:
+                if isinstance(component, gr.Row):
+                    for col in component.children:
+                        if isinstance(col, gr.Column):
+                            for elem in col.children:
+                                if isinstance(elem, gr.Dropdown) and elem.label == "字段":
+                                    field_dropdown = elem
+                                elif isinstance(elem, gr.Dropdown) and elem.label == "Operator":
+                                    operator_dropdown = elem
+                                elif isinstance(elem, gr.Textbox) and elem.label == "Value":
+                                    value_input = elem
+                                elif isinstance(elem, gr.Radio) and elem.label == "Logic Operator":
+                                    logic_radio = elem
+                                elif isinstance(elem, gr.Button) and elem.value == "Add Condition":
+                                    add_condition_btn = elem
+                                elif isinstance(elem, gr.Textbox) and elem.label == "Template Name":
+                                    template_name = elem
+                                elif isinstance(elem, gr.Dropdown) and elem.label == "Load Template":
+                                    template_list = elem
+                                elif isinstance(elem, gr.Dataframe) and elem.label == "Current Conditions":
+                                    conditions_list = elem
+                                elif isinstance(elem, gr.Button) and elem.value == "Clear Filter":
+                                    clear_btn = elem
+                                elif isinstance(elem, gr.Button) and elem.value == "Preview Results":
+                                    preview_btn = elem
+                                elif isinstance(elem, gr.Textbox) and elem.label == "Preview":
+                                    preview_output = elem
         except Exception as e:
-            logger.error(f"格式化筛选条件失败: {str(e)}")
-            return "{}"
-
-    def get_filter(self) -> Dict[str, Any]:
-        """获取当前设置的筛选条件
-
-        Returns:
-            筛选条件字典
-        """
-        return self.final_filter
-
-    def _validate_condition(self, condition):
-        """验证单个条件是否有效"""
-        if not isinstance(condition, dict):
-            return False, "条件必须是字典"
-        if "field" not in condition or "operator" not in condition or "value" not in condition:
-            return False, "条件必须包含 'field', 'operator', 'value'"
-        if condition["operator"] not in self.operators:
-            # Ensure this line uses standard string formatting
-            return False, "无效的操作符: {}".format(condition["operator"])
-        return True, ""
+            logger.error(f"Failed to extract components from accordion: {e}")
+        
+        # Define callback functions
+        def add_condition(field: str, operator: str, value: str, conditions: List[List[str]]) -> Tuple[List[List[str]], Dict[str, Any]]:
+            """Add a condition to the filter.
+            
+            Args:
+                field: Field name
+                operator: Operator string (includes display text)
+                value: Value to filter by
+                conditions: Current conditions table
+                
+            Returns:
+                Updated conditions table and filter JSON
+            """
+            # Extract operator code from the display string
+            op_code = operator.split(" ")[0]
+            
+            # Handle value type conversion
+            if value.isdigit():
+                value = int(value)
+            elif value.replace(".", "", 1).isdigit() and value.count(".") <= 1:
+                value = float(value)
+                
+            # Add to temporary conditions
+            self.temp_conditions.append({
+                "field": field,
+                "op": op_code,
+                "value": value
+            })
+            
+            # Update UI table
+            new_conditions = conditions.copy() if conditions else []
+            new_conditions.append([field, op_code, str(value)])
+            
+            # Update the current filter JSON
+            if len(self.temp_conditions) > 1:
+                # Use the first condition's logic operator (default to AND)
+                logic = "and"  # Default
+                self.current_condition = {logic: self.temp_conditions}
+            else:
+                # Just one condition
+                self.current_condition = self.temp_conditions[0]
+                
+            return new_conditions, self.current_condition
+        
+        def clear_filter() -> Tuple[List[List[str]], Dict[str, Any]]:
+            """Clear the current filter and conditions.
+            
+            Returns:
+                Empty conditions table and filter JSON
+            """
+            self.temp_conditions = []
+            self.current_condition = {}
+            return [], {}
+        
+        def save_template(name: str, filter_json: Dict[str, Any]) -> gr.Dropdown:
+            """Save the current filter as a template.
+            
+            Args:
+                name: Template name
+                filter_json: Filter condition to save
+                
+            Returns:
+                Updated template dropdown
+            """
+            if not name or not filter_json:
+                return gr.Dropdown(choices=list(self.templates.keys()))
+                
+            # Save the template
+            self.filter_manager.add_template(name, filter_json)
+            
+            # Reload templates
+            self.templates = self.filter_manager.list_templates()
+            
+            # Return updated dropdown
+            return gr.Dropdown(choices=list(self.templates.keys()))
+        
+        def load_template(name: str) -> Tuple[Dict[str, Any], List[List[str]]]:
+            """Load a template as the current filter.
+            
+            Args:
+                name: Template name to load
+                
+            Returns:
+                Loaded filter JSON and updated conditions table
+            """
+            if not name or name not in self.templates:
+                return {}, []
+                
+            template = self.filter_manager.get_template(name)
+            self.current_condition = template
+            
+            # Convert to UI table format
+            table_data = []
+            
+            # Extract conditions from filter
+            conditions = []
+            if "field" in template:
+                # Single condition
+                conditions = [template]
+            elif "and" in template:
+                conditions = template["and"]
+            elif "or" in template:
+                conditions = template["or"]
+                
+            # Update temp conditions
+            self.temp_conditions = conditions
+            
+            # Build table data
+            for condition in conditions:
+                table_data.append([
+                    condition.get("field", ""),
+                    condition.get("op", ""),
+                    str(condition.get("value", ""))
+                ])
+                
+            return template, table_data
+        
+        # Connect callbacks in a single try-except block
+        try:
+            # Add condition button callback
+            if add_condition_btn and field_dropdown and operator_dropdown and value_input and conditions_list:
+                add_condition_btn.click(
+                    fn=add_condition,
+                    inputs=[field_dropdown, operator_dropdown, value_input, conditions_list],
+                    outputs=[conditions_list, current_filter]
+                )
+                
+            # Clear button callback
+            if clear_btn:
+                clear_btn.click(
+                    fn=clear_filter,
+                    inputs=[],
+                    outputs=[conditions_list, current_filter]
+                )
+                
+            # Save template button callback
+            if save_template_btn and template_name:
+                save_template_btn.click(
+                    fn=save_template,
+                    inputs=[template_name, current_filter],
+                    outputs=[template_list]
+                )
+                
+            # Load template button callback
+            if load_template_btn and template_list:
+                load_template_btn.click(
+                    fn=load_template,
+                    inputs=[template_list],
+                    outputs=[current_filter, conditions_list]
+                )
+                
+            # Connect external callbacks
+            if on_preview and preview_btn and preview_output:
+                preview_btn.click(
+                    fn=on_preview,
+                    inputs=[current_filter],
+                    outputs=[preview_output]
+                )
+                
+            if on_apply and apply_filter_btn and current_filter:
+                apply_filter_btn.click(
+                    fn=on_apply,
+                    inputs=[current_filter],
+                    outputs=[]
+                )
+        except Exception as e:
+            logger.error(f"Failed to set up filter callbacks: {e}")

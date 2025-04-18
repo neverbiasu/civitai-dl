@@ -1,248 +1,231 @@
-import json
+"""Image browser component for Civitai Downloader WebUI.
+
+Provides functionality for browsing, previewing, and downloading images from
+Civitai model pages and galleries.
+"""
+
 import os
-from typing import Dict, List, Optional
+import json
+import logging
+from typing import Dict, Any, List, Optional, Tuple, Union
+from urllib.parse import urlparse, unquote
 
 from civitai_dl.api.client import CivitaiAPI
 from civitai_dl.core.downloader import DownloadEngine
-from civitai_dl.utils.config import get_config
-from civitai_dl.utils.metadata import extract_image_metadata
+from civitai_dl.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class ImageDownloader:
-    """图像下载器组件，提供图像搜索和下载功能"""
-
-    def __init__(self, api: CivitaiAPI, downloader: DownloadEngine):
-        """初始化图像下载器"""
+    """Component for searching, browsing and downloading images from Civitai."""
+    
+    def __init__(self, api: CivitaiAPI, download_engine: DownloadEngine) -> None:
+        """Initialize the image downloader component.
+        
+        Args:
+            api: Civitai API client instance
+            download_engine: Download engine for handling downloads
+        """
         self.api = api
-        self.downloader = downloader
-        self.config = get_config()
-        self.current_images = []  # 当前显示的图像列表
-
+        self.download_engine = download_engine
+        self.current_images: List[Dict[str, Any]] = []
+        self.gallery_urls: List[str] = []
+    
     def search_images(
-        self,
-        model_id: int,
+        self, 
+        model_id: int, 
         version_id: Optional[int] = None,
         nsfw_filter: str = "排除NSFW",
         gallery: bool = False,
-        limit: int = 10,
-    ) -> List[Dict]:
-        """
-        搜索模型的图像
-
+        limit: int = 10
+    ) -> List[str]:
+        """Search for images for a model or version.
+        
         Args:
-            model_id: 模型ID
-            version_id: 版本ID（可选）
-            nsfw_filter: NSFW过滤选项
-            gallery: 是否获取社区画廊图像
-            limit: 返回结果数量限制
-
+            model_id: Model ID to search for
+            version_id: Optional specific version ID
+            nsfw_filter: NSFW filtering option ("排除NSFW", "包含NSFW", "仅NSFW")
+            gallery: Whether to include community gallery images
+            limit: Maximum number of images to return
+            
         Returns:
-            图像列表
+            List of image URLs for display in gallery
         """
+        logger.info(f"Searching images for model {model_id}, version {version_id}")
+        
+        # Reset current state
+        self.current_images = []
+        self.gallery_urls = []
+        
         try:
-            # 转换NSFW过滤选项
-            include_nsfw = False
-            if nsfw_filter == "包含NSFW":
-                include_nsfw = True
-            elif nsfw_filter == "仅NSFW":
-                include_nsfw = "only"
-
-            # 根据gallery参数调用不同的API
-            if gallery:
-                images = self.api.get_model_images(
-                    model_id=model_id,
-                    version_id=version_id,
-                    limit=limit,
-                    nsfw=include_nsfw,
-                )
-            else:
-                if version_id:
-                    # 获取版本图像 - 注意：不传入limit参数
-                    images = self.api.get_version_images(version_id)
-                    # 手动限制结果数量
-                    images = images[:limit] if images else []
-                else:
-                    # 先获取模型信息，再获取最新版本的图像
-                    model_info = self.api.get_model(model_id)
-                    if not model_info or "modelVersions" not in model_info:
-                        return []
-
-                    versions = model_info.get("modelVersions", [])
-                    if not versions:
-                        return []
-
-                    # 获取最新版本的图像
-                    latest_version_id = versions[0].get("id")
-                    images = self.api.get_version_images(latest_version_id)
-                    # 手动限制结果数量
-                    images = images[:limit] if images else []
-
-            # 过滤NSFW内容（如果API没有正确处理）
-            if nsfw_filter == "排除NSFW":
-                images = [img for img in images if not img.get("nsfw", False)]
-            elif nsfw_filter == "仅NSFW":
-                images = [img for img in images if img.get("nsfw", False)]
-
-            # 保存当前图像列表
-            self.current_images = images
-
-            # 转换为Gradio Gallery可用的格式
-            gallery_images = []
-            for img in images:
-                url = img.get("url")
-                if url:
-                    # 提取元信息作为标题
-                    meta = img.get("meta", {})
-                    prompt = (
-                        meta.get("prompt", "无提示词") if isinstance(meta, dict) else "无元数据"
-                    )
-                    # 截取长提示词
-                    if len(prompt) > 100:
-                        prompt = prompt[:97] + "..."
-
-                    # 添加到画廊
-                    gallery_images.append((url, prompt))
-
-            return gallery_images
-
-        except Exception as e:
-            print(f"搜索图像时出错: {e}")
-            import traceback
-
-            traceback.print_exc()
-            return []
-
-    def get_image_metadata(self, selected_index: int) -> Dict:
-        """
-        获取选中图像的元数据
-
-        Args:
-            selected_index: 选中的图像索引
-
-        Returns:
-            图像元数据
-        """
-        try:
-            if 0 <= selected_index < len(self.current_images):
-                image = self.current_images[selected_index]
-                # 提取API返回的元数据
-                metadata = {
-                    "id": image.get("id"),
-                    "width": image.get("width"),
-                    "height": image.get("height"),
-                    "nsfw": image.get("nsfw", False),
-                    "hash": image.get("hash", ""),
-                    "meta": image.get("meta", {}),
-                    "stats": {
-                        "downloadCount": image.get("stats", {}).get("downloadCount", 0),
-                        "favoriteCount": image.get("stats", {}).get("favoriteCount", 0),
-                        "commentCount": image.get("stats", {}).get("commentCount", 0),
-                    },
-                }
-                return metadata
-            return {"message": "无效的图像索引"}
-        except Exception as e:
-            import traceback
-
-            traceback.print_exc()
-            return {"error": f"获取元数据失败: {str(e)}"}
-
-    def download_images(
-        self,
-        model_id: int,
-        version_id: Optional[int] = None,
-        gallery: bool = False,
-        nsfw_filter: str = "排除NSFW",
-        limit: int = 10,
-    ) -> str:
-        """
-        下载模型的图像
-
-        Args:
-            model_id: 模型ID
-            version_id: 版本ID（可选）
-            gallery: 是否下载社区画廊图像
-            nsfw_filter: NSFW过滤选项
-            limit: 下载数量限制
-
-        Returns:
-            下载结果信息
-        """
-        try:
-            # 转换NSFW过滤选项
-            if nsfw_filter == "包含NSFW":
-                pass
-            elif nsfw_filter == "仅NSFW":
-                pass
-
-            # 获取图像列表（如果尚未获取）
-            if not self.current_images:
-                self.search_images(model_id, version_id, nsfw_filter, gallery, limit)
-
-            if not self.current_images:
-                return "未找到可下载的图像"
-
-            # 创建保存目录
-            folder_name = f"model_{model_id}_{'gallery' if gallery else 'examples'}"
+            # Convert NSFW filter option
+            include_nsfw = nsfw_filter in ["包含NSFW", "仅NSFW"]
+            only_nsfw = nsfw_filter == "仅NSFW"
+            
+            # First get version-specific images if a version is specified
             if version_id:
-                folder_name += f"_v{version_id}"
-
-            output_dir = os.path.join(
-                self.config.get("output_dir", "./downloads"), "images", folder_name
-            )
-            os.makedirs(output_dir, exist_ok=True)
-
-            # 开始下载
-            download_count = 0
-            for i, image in enumerate(self.current_images[:limit]):
-                image_url = image.get("url")
-                if not image_url:
-                    continue
-
-                # 构建文件名
-                filename = f"{model_id}_{i+1}_{os.path.basename(image_url)}"
-                if not os.path.splitext(filename)[1]:  # 确保有扩展名
-                    filename += ".jpg"
-
-                # 开始下载
-                task = self.downloader.download(
-                    url=image_url, output_path=output_dir, filename=filename
-                )
-
-                # 等待下载完成
-                task.wait()
-                if task.status == "completed":
-                    download_count += 1
-
-                    # 提取和保存元数据
-                    try:
-                        image_path = os.path.join(output_dir, filename)
-                        metadata = extract_image_metadata(image_path)
-                        if metadata:
-                            # 添加API元数据
-                            api_meta = {
-                                "id": image.get("id"),
-                                "model_id": model_id,
-                                "version_id": version_id,
-                                "nsfw": image.get("nsfw", False),
-                                "width": image.get("width"),
-                                "height": image.get("height"),
-                                "hash": image.get("hash"),
-                                "meta": image.get("meta"),
-                            }
-                            # 合并元数据
-                            metadata.update(api_meta)
-
-                            # 保存元数据
-                            metadata_path = (
-                                os.path.splitext(image_path)[0] + ".meta.json"
-                            )
-                            with open(metadata_path, "w", encoding="utf-8") as f:
-                                json.dump(metadata, f, indent=2, ensure_ascii=False)
-                    except Exception as e:
-                        print(f"保存图像元数据失败: {e}")
-
-            return f"成功下载 {download_count}/{len(self.current_images[:limit])} 张图像到 {output_dir}"
-
+                version_images = self.api.get_version_images(version_id)
+                
+                # Filter by NSFW preference
+                filtered_images = []
+                for img in version_images:
+                    is_nsfw = img.get("nsfw", False)
+                    if only_nsfw and is_nsfw:
+                        filtered_images.append(img)
+                    elif not only_nsfw and (include_nsfw or not is_nsfw):
+                        filtered_images.append(img)
+                
+                self.current_images.extend(filtered_images[:limit])
+            
+            # If we need more images and gallery option is enabled
+            remaining = limit - len(self.current_images)
+            if gallery and remaining > 0:
+                # Get gallery images
+                params = {
+                    "modelId": model_id,
+                    "limit": remaining,
+                    "nsfw": str(include_nsfw).lower()
+                }
+                
+                if version_id:
+                    params["modelVersionId"] = version_id
+                
+                gallery_response = self.api.get_images(params)
+                gallery_images = gallery_response.get("items", [])
+                
+                # Filter by NSFW preference
+                filtered_gallery = []
+                for img in gallery_images:
+                    is_nsfw = img.get("nsfw", False)
+                    if only_nsfw and is_nsfw:
+                        filtered_gallery.append(img)
+                    elif not only_nsfw and (include_nsfw or not is_nsfw):
+                        filtered_gallery.append(img)
+                
+                self.current_images.extend(filtered_gallery)
+            
+            # Extract URLs for the gallery
+            self.gallery_urls = [img.get("url", "") for img in self.current_images if img.get("url")]
+            
+            logger.info(f"Found {len(self.gallery_urls)} images")
+            return self.gallery_urls
+            
         except Exception as e:
-            return f"下载图像时出错: {e}"
+            logger.error(f"Error searching images: {str(e)}")
+            return []
+    
+    def get_image_metadata(self, index: int) -> Dict[str, Any]:
+        """Get metadata for an image by index.
+        
+        Args:
+            index: Index of the image in the current results
+            
+        Returns:
+            Image metadata dictionary
+        """
+        if 0 <= index < len(self.current_images):
+            return self.current_images[index]
+        
+        return {"error": "Image index out of range"}
+    
+    def download_images(
+        self, 
+        model_id: int, 
+        version_id: Optional[int] = None,
+        nsfw_filter: str = "排除NSFW",
+        gallery: bool = False,
+        limit: int = 10,
+        output_dir: Optional[str] = None
+    ) -> str:
+        """Download images for a model.
+        
+        Args:
+            model_id: Model ID
+            version_id: Optional version ID
+            nsfw_filter: NSFW filtering option
+            gallery: Whether to include community gallery
+            limit: Maximum images to download
+            output_dir: Custom output directory
+            
+        Returns:
+            Status message about the download
+        """
+        # If no current images, perform search first
+        if not self.current_images:
+            self.search_images(model_id, version_id, nsfw_filter, gallery, limit)
+        
+        if not self.current_images:
+            return "No images found to download"
+        
+        # Determine output directory
+        if not output_dir:
+            version_str = f"_v{version_id}" if version_id else ""
+            folder_name = f"model_{model_id}{version_str}_images"
+            output_dir = os.path.join(self.download_engine.output_dir, "images", folder_name)
+        
+        # Create directory
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Start downloads
+        download_count = 0
+        tasks = []
+        
+        for i, image in enumerate(self.current_images[:limit]):
+            url = image.get("url")
+            if not url:
+                continue
+            
+            # Create filename from URL
+            parsed_url = urlparse(url)
+            filename = os.path.basename(unquote(parsed_url.path))
+            if not filename or not os.path.splitext(filename)[1]:
+                filename = f"image_{model_id}_{i+1}.jpg"
+            
+            # Prefix with index for ordering
+            filename = f"{i+1:03d}_{filename}"
+            
+            # Start download task
+            task = self.download_engine.download(
+                url=url,
+                output_path=output_dir,
+                filename=filename,
+                use_range=False, # Images don't usually need range requests
+                verify=self.api.verify,
+                proxy=self.api.proxy,
+                timeout=self.api.timeout,
+                completion_callback=self._create_metadata_callback(image, output_dir, filename)
+            )
+            
+            tasks.append(task)
+            download_count += 1
+        
+        if download_count > 0:
+            return f"Started downloading {download_count} images to {output_dir}"
+        else:
+            return "No images were queued for download"
+    
+    def _create_metadata_callback(self, image: Dict[str, Any], 
+                                 output_dir: str, filename: str) -> callable:
+        """Create a callback to save image metadata after download.
+        
+        Args:
+            image: Image metadata dictionary
+            output_dir: Output directory
+            filename: Image filename
+            
+        Returns:
+            Callback function for the download task
+        """
+        def save_metadata_callback(task):
+            if task.status == "completed":
+                try:
+                    # Save metadata JSON alongside the image
+                    meta_path = os.path.join(output_dir, os.path.splitext(filename)[0] + ".meta.json")
+                    with open(meta_path, "w", encoding="utf-8") as f:
+                        json.dump(image, f, indent=2, ensure_ascii=False)
+                    logger.debug(f"Saved metadata to {meta_path}")
+                except Exception as e:
+                    logger.error(f"Failed to save image metadata: {str(e)}")
+        
+        return save_metadata_callback

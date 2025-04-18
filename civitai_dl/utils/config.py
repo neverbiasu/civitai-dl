@@ -1,176 +1,197 @@
+"""Configuration management utilities for Civitai Downloader.
+
+Provides functions and classes to load, save, and access application configuration
+settings from JSON files or environment variables.
+"""
+
+import os
 import json
 import logging
-import os
-from typing import Any, Dict
+from typing import Dict, Any, List, Optional, Union
 
-logger = logging.getLogger(__name__)
+from civitai_dl.utils.logger import get_logger
 
-# 默认配置
-DEFAULT_CONFIG = {
-    "api_key": "",
-    "output_dir": "./downloads",
-    "concurrent_downloads": 3,
-    "chunk_size": 8192,
-    "timeout": 30,
-    "max_retries": 3,
-    "verify_ssl": True,
-    "path_template": "{type}/{creator}/{name}",
-    "image_path_template": "images/{model_id}/{image_id}",
-    "proxy": "",
-    "save_metadata": True,
-    "theme": "light",
-    "nsfw_filter": "exclude",  # options: exclude, include, only
-}
+logger = get_logger(__name__)
 
-# 配置文件路径
-CONFIG_FILE = os.path.expanduser("~/.civitai-dl/config.json")
+# Default configuration file path
+DEFAULT_CONFIG_PATH = os.path.expanduser("~/.civitai-downloader/config.json")
 
-# 全局配置对象
-_config = None
+
+def get_config_path() -> str:
+    """Get the path to the configuration file.
+    
+    Uses environment variable if set, otherwise uses default path.
+    
+    Returns:
+        Configuration file path
+    """
+    return os.environ.get("CIVITAI_CONFIG_PATH", DEFAULT_CONFIG_PATH)
 
 
 def get_config() -> Dict[str, Any]:
-    """
-    获取配置，如果尚未加载，则从文件加载
-
+    """Load and return the application configuration.
+    
+    Loads from config file, with fallback to default configuration.
+    
     Returns:
-        配置字典
+        Configuration dictionary
     """
-    global _config
-    if _config is None:
-        _config = load_config()
-    return _config
-
-
-def load_config() -> Dict[str, Any]:
-    """
-    从文件加载配置
-
-    Returns:
-        配置字典
-    """
-    # 确保配置目录存在
-    config_dir = os.path.dirname(CONFIG_FILE)
-    os.makedirs(config_dir, exist_ok=True)
-
-    # 如果配置文件不存在，创建默认配置
-    if not os.path.exists(CONFIG_FILE):
-        save_config(DEFAULT_CONFIG)
-        return DEFAULT_CONFIG.copy()
-
-    # 加载配置文件
+    config_path = get_config_path()
+    
     try:
-        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            config = json.load(f)
-
-        # 确保所有默认项都存在
-        for key, value in DEFAULT_CONFIG.items():
-            if key not in config:
-                config[key] = value
-
-        return config
+        if os.path.exists(config_path):
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                logger.debug(f"Loaded configuration from {config_path}")
+                return config
+        else:
+            logger.info(f"Configuration file not found at {config_path}, using defaults")
+            return get_default_config()
     except Exception as e:
-        logger.error(f"加载配置文件失败: {e}")
-        return DEFAULT_CONFIG.copy()
+        logger.error(f"Failed to load configuration: {str(e)}")
+        return get_default_config()
 
 
 def save_config(config: Dict[str, Any]) -> bool:
-    """
-    保存配置到文件
-
+    """Save the configuration to file.
+    
     Args:
-        config: 配置字典
-
+        config: Configuration dictionary to save
+        
     Returns:
-        是否成功保存
+        True if successful, False otherwise
     """
-    global _config
-    _config = config
-
-    # 确保配置目录存在
-    config_dir = os.path.dirname(CONFIG_FILE)
-    os.makedirs(config_dir, exist_ok=True)
-
+    config_path = get_config_path()
+    
     try:
-        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        
+        with open(config_path, 'w', encoding='utf-8') as f:
             json.dump(config, f, indent=2, ensure_ascii=False)
+            
+        logger.debug(f"Configuration saved to {config_path}")
         return True
     except Exception as e:
-        logger.error(f"保存配置文件失败: {e}")
+        logger.error(f"Failed to save configuration: {str(e)}")
+        return False
+
+
+def get_default_config() -> Dict[str, Any]:
+    """Get the default configuration.
+    
+    Returns:
+        Default configuration dictionary
+    """
+    return {
+        "api_key": "",
+        "proxy": "",
+        "verify_ssl": True,
+        "timeout": 30,
+        "max_retries": 3,
+        "output_dir": os.path.join(os.getcwd(), "downloads"),
+        "concurrent_downloads": 3,
+        "chunk_size": 8192,
+        "path_template": "{type}/{creator}/{name}",
+        "image_path_template": "images/{model_id}/{image_id}",
+        "theme": "light",
+        "recent_directories": [],
+        "model_type_dirs": {
+            "Checkpoint": "Checkpoints",
+            "LORA": "LoRAs",
+            "TextualInversion": "Embeddings",
+            "Hypernetwork": "Hypernetworks",
+            "AestheticGradient": "AestheticGradients",
+            "Controlnet": "ControlNets",
+            "Poses": "Poses"
+        },
+    }
+
+
+def set_config_value(key: str, value: Any) -> bool:
+    """Set a specific configuration value.
+    
+    Args:
+        key: Configuration key
+        value: Value to set
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        config = get_config()
+        config[key] = value
+        return save_config(config)
+    except Exception as e:
+        logger.error(f"Failed to set config value: {str(e)}")
         return False
 
 
 def get_config_value(key: str, default: Any = None) -> Any:
-    """
-    获取指定配置项的值
-
+    """Get a specific configuration value.
+    
     Args:
-        key: 配置项名称
-        default: 如果配置项不存在，返回的默认值
-
+        key: Configuration key
+        default: Default value if key not found
+        
     Returns:
-        配置项值或默认值
+        Configuration value or default
     """
-    config = get_config()
-    return config.get(key, default)
-
-
-def set_config_value(key: str, value: Any) -> bool:
-    """
-    设置指定配置项的值
-
-    Args:
-        key: 配置项名称
-        value: 配置项值
-
-    Returns:
-        是否成功设置
-    """
-    config = get_config()
-    config[key] = value
-    return save_config(config)
-
-
-def export_config(file_path: str) -> bool:
-    """
-    导出配置到指定文件
-
-    Args:
-        file_path: 导出文件路径
-
-    Returns:
-        是否成功导出
-    """
-    config = get_config()
     try:
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(config, f, indent=2, ensure_ascii=False)
-        return True
+        config = get_config()
+        return config.get(key, default)
     except Exception as e:
-        logger.error(f"导出配置失败: {e}")
-        return False
+        logger.error(f"Failed to get config value: {str(e)}")
+        return default
 
 
-def import_config(file_path: str) -> bool:
-    """
-    从指定文件导入配置
-
+def add_recent_directory(directory: str, max_entries: int = 10) -> bool:
+    """Add a directory to the recent directories list.
+    
     Args:
-        file_path: 导入文件路径
-
+        directory: Directory path to add
+        max_entries: Maximum number of recent directories to keep
+        
     Returns:
-        是否成功导入
+        True if successful, False otherwise
     """
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            config = json.load(f)
-
-        # 确保关键字段存在
-        for key, value in DEFAULT_CONFIG.items():
-            if key not in config:
-                config[key] = value
-
+        config = get_config()
+        recent_dirs = config.get("recent_directories", [])
+        
+        # Remove existing entry if present
+        if directory in recent_dirs:
+            recent_dirs.remove(directory)
+            
+        # Add to the beginning
+        recent_dirs.insert(0, directory)
+        
+        # Limit list length
+        config["recent_directories"] = recent_dirs[:max_entries]
+        
         return save_config(config)
     except Exception as e:
-        logger.error(f"导入配置失败: {e}")
+        logger.error(f"Failed to add recent directory: {str(e)}")
         return False
+
+
+def get_download_dir(model_type: Optional[str] = None) -> str:
+    """Get the appropriate download directory for a model type.
+    
+    Args:
+        model_type: Model type to get directory for
+        
+    Returns:
+        Download directory path
+    """
+    config = get_config()
+    base_dir = config.get("output_dir", os.path.join(os.getcwd(), "downloads"))
+    
+    if not model_type:
+        return base_dir
+        
+    # Get type-specific directory mapping
+    type_dirs = config.get("model_type_dirs", {})
+    type_subdir = type_dirs.get(model_type, model_type)
+    
+    return os.path.join(base_dir, type_subdir)

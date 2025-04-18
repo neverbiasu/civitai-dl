@@ -4,20 +4,31 @@ import json
 import os
 import time
 from threading import Thread
+from typing import Dict, Any, List, Optional, Tuple, Union, Callable
 
 import gradio as gr
 
 from civitai_dl import __version__
 from civitai_dl.api.client import CivitaiAPI
 from civitai_dl.core.downloader import DownloadEngine
+from civitai_dl.core.filter import FilterParser, apply_filter
 from civitai_dl.utils.config import get_config, set_config_value
-
-# 导入ImageDownloader类
+from civitai_dl.utils.logger import get_logger
+from civitai_dl.webui.components.filter_builder import FilterBuilder
 from civitai_dl.webui.components.image_browser import ImageDownloader
 
+# 设置日志记录器
+logger = get_logger(__name__)
 
-def create_app():
-    """创建并配置WebUI应用"""
+def create_app() -> gr.Blocks:
+    """Create and configure the WebUI application.
+    
+    Creates the Gradio interface with tabs for model downloading, searching,
+    image browsing, download queue management, and application settings.
+    
+    Returns:
+        Configured Gradio Blocks application
+    """
     config = get_config()
     api = CivitaiAPI(
         api_key=config.get("api_key"),
@@ -31,22 +42,22 @@ def create_app():
         concurrent_downloads=config.get("concurrent_downloads", 3),
     )
 
-    # 创建图像下载器实例
+    # Create image downloader instance
     image_downloader = ImageDownloader(api, download_engine)
 
-    # 保存下载任务的字典
-    download_tasks = {}
+    # Dictionary to store download tasks
+    download_tasks: Dict[str, Any] = {}
 
     with gr.Blocks(
         title=f"Civitai Downloader v{__version__}", theme=gr.themes.Soft()
     ) as app:
-        # 顶部标题和导航
+        # Top header and navigation
         with gr.Row():
             gr.Markdown(f"# Civitai Downloader v{__version__}")
 
-        # 主要内容区域
+        # Main content area with tabs
         with gr.Tabs() as tabs:
-            # 下载模型标签页
+            # ===== Download Model Tab =====
             with gr.Tab("下载模型"):
                 with gr.Row():
                     with gr.Column(scale=1):
@@ -81,7 +92,7 @@ def create_app():
                             interactive=False,
                         )
 
-            # 模型搜索标签页
+            # ===== Model Search Tab =====
             with gr.Tab("模型搜索"):
                 with gr.Row():
                     with gr.Column(scale=1):
@@ -118,24 +129,32 @@ def create_app():
                             interactive=False,
                         )
 
-                # 搜索结果操作区
+                # Search results action area
                 with gr.Row():
                     download_selected_btn = gr.Button("下载选中模型", interactive=False)
                     refresh_btn = gr.Button("刷新", interactive=True)
 
-                # 提示信息
+                # Help text
                 gr.Markdown(
                     """
                 > **注意**: 模型搜索功能正在开发中，目前展示的是示例数据。完整功能将在后续版本中提供。
                 """
                 )
 
-                # 创建高级筛选组件
+                # Advanced filter components
                 filter_builder = FilterBuilder()
                 filter_accordion, current_filter, apply_filter_btn, save_template_btn, load_template_btn = filter_builder.create_ui()
 
-                # 设置高级筛选回调
-                def on_preview_filter(filter_condition):
+                # Set up filter callbacks
+                def on_preview_filter(filter_condition: Dict[str, Any]) -> str:
+                    """Preview filter results count.
+                    
+                    Args:
+                        filter_condition: Filter condition to preview
+                        
+                    Returns:
+                        String describing matching models count
+                    """
                     try:
                         api_params = FilterParser.to_api_params(filter_condition)
                         api_params["limit"] = 1
@@ -145,17 +164,25 @@ def create_app():
                     except Exception as e:
                         return f"预览失败: {str(e)}"
 
-                def on_apply_filter(filter_condition):
+                def on_apply_filter(filter_condition: Dict[str, Any]) -> List[List[Any]]:
+                    """Apply filter and return matching models.
+                    
+                    Args:
+                        filter_condition: Filter condition to apply
+                        
+                    Returns:
+                        List of model data rows for display
+                    """
                     try:
                         api_params = FilterParser.to_api_params(filter_condition)
                         api_params["limit"] = 50
                         response = api.get_models(api_params)
                         models = response.get("items", [])
 
-                        # 应用客户端筛选
+                        # Apply client-side filtering
                         filtered_models = apply_filter(models, filter_condition)
 
-                        # 转换为表格数据
+                        # Convert to table data
                         table_data = [
                             [
                                 model.get("id", ""),
@@ -180,11 +207,30 @@ def create_app():
                     on_apply=lambda filter_condition: update_results(on_apply_filter(filter_condition))
                 )
 
-                def update_results(data):
+                def update_results(data: List[List[Any]]) -> List[List[Any]]:
+                    """Update results display.
+                    
+                    Args:
+                        data: New table data
+                        
+                    Returns:
+                        Updated table data
+                    """
                     return data
 
-                # 基本搜索按钮回调
-                def on_search(query, types, sort, nsfw_enabled):
+                # Basic search button callback
+                def on_search(query: str, types: List[str], sort: str, nsfw_enabled: bool) -> List[List[Any]]:
+                    """Search models with basic parameters.
+                    
+                    Args:
+                        query: Search query string
+                        types: Model type filters
+                        sort: Sort method
+                        nsfw_enabled: Whether to include NSFW content
+                        
+                    Returns:
+                        Search results as table data
+                    """
                     try:
                         params = {}
                         if query:
@@ -200,7 +246,7 @@ def create_app():
                         response = api.get_models(params)
                         models = response.get("items", [])
 
-                        # 转换为表格数据
+                        # Convert to table data
                         table_data = [
                             [
                                 model.get("id", ""),
@@ -225,12 +271,12 @@ def create_app():
                 )
 
                 apply_filter_btn.click(
-                    fn=lambda: None,  # 实际处理在setup_callbacks中设置
+                    fn=lambda: None,  # Actual handling in setup_callbacks
                     inputs=[],
                     outputs=[results],
                 )
 
-            # 图像下载标签页
+            # ===== Image Download Tab =====
             with gr.Tab("图像下载"):
                 with gr.Row():
                     with gr.Column(scale=1):
@@ -254,12 +300,12 @@ def create_app():
                             label="图像预览", show_label=True, columns=3, rows=3, height=600
                         )
 
-                # 图像详情和操作
+                # Image details and actions
                 with gr.Row():
                     download_images_btn = gr.Button("下载所有图像")
                     image_metadata = gr.JSON(label="图像元数据")
 
-            # 下载队列标签页
+            # ===== Download Queue Tab =====
             with gr.Tab("下载队列"):
                 with gr.Row():
                     queue_table = gr.Dataframe(
@@ -274,7 +320,7 @@ def create_app():
                     gr.Button("全部取消")
                     gr.Button("刷新队列")
 
-            # 设置标签页
+            # ===== Settings Tab =====
             with gr.Tab("设置"):
                 with gr.Accordion("基本设置", open=True):
                     api_key = gr.Textbox(
@@ -355,25 +401,37 @@ def create_app():
                     gr.Button("导入设置")
                     settings_status = gr.Textbox(label="设置状态", interactive=False)
 
-        # 页脚信息
+        # Footer information
         with gr.Row():
             gr.Markdown(
                 "Civitai Downloader | [项目地址](https://github.com/neverbiasu/civitai-dl) | [问题反馈](https://github.com/neverbiasu/civitai-dl/issues)"
             )
 
-        # 回调函数
-        def on_download(model_id, version_id, output_dir, with_images, image_limit):
-            """处理模型下载请求"""
+        # == Callback functions ==
+        def on_download(model_id: int, version_id: Optional[int], output_dir: str, 
+                       with_images: bool, image_limit: int) -> Tuple[str, float]:
+            """Handle model download request.
+            
+            Args:
+                model_id: Civitai model ID
+                version_id: Specific version ID (optional)
+                output_dir: Directory to save files
+                with_images: Whether to download example images
+                image_limit: Maximum number of images to download
+                
+            Returns:
+                Status message and initial progress value
+            """
             if not model_id:
                 return "请输入有效的模型ID", 0
 
             try:
-                # 获取模型信息
+                # Get model information
                 model_info = api.get_model(model_id)
                 if not model_info:
                     return f"错误: 未找到ID为{model_id}的模型", 0
 
-                # 获取版本信息
+                # Get version information
                 versions = model_info.get("modelVersions", [])
                 if not versions:
                     return f"错误: 模型 {model_info.get('name')} 没有可用版本", 0
@@ -389,27 +447,27 @@ def create_app():
                 else:
                     target_version = versions[0]
 
-                # 获取文件信息
+                # Get file information
                 files = target_version.get("files", [])
                 if not files:
                     return f"错误: 版本 {target_version.get('name')} 没有可用文件", 0
 
-                # 选择主文件（优先选择primary标记的文件）
+                # Select primary file (prioritize primary-marked files)
                 target_file = next(
                     (f for f in files if f.get("primary", False)), files[0]
                 )
 
-                # 构建下载URL（使用API的get_download_url方法确保一致性）
+                # Build download URL
                 download_url = api.get_download_url(target_version.get("id"))
 
                 if not download_url:
                     return f"错误: 无法获取下载链接", 0
 
-                # 设置输出路径
+                # Set output path
                 if not output_dir:
                     output_dir = config.get("output_dir", "./downloads")
 
-                # 打印下载信息便于调试
+                # Log download info for debugging
                 print(
                     f"正在下载模型: {model_info.get('name')} - {target_version.get('name')}"
                 )
@@ -418,22 +476,22 @@ def create_app():
                 print(f"使用代理: {api.proxy}")
                 print(f"API Key设置: {'已设置' if api.api_key else '未设置'}")
 
-                # 创建下载任务
+                # Create download task
                 task_id = f"model_{model_id}_{int(time.time())}"
                 download_tasks[task_id] = download_engine.download(
                     url=download_url,
                     output_path=output_dir,
                     filename=target_file.get("name"),
-                    headers=api.build_headers(),  # 使用API客户端的headers确保认证一致
-                    use_range=True,  # 启用断点续传
-                    verify=api.verify,  # 使用API客户端的SSL验证设置
-                    proxy=api.proxy,  # 使用API客户端的代理设置
-                    timeout=api.timeout,  # 使用API客户端的超时设置
+                    headers=api.build_headers(),
+                    use_range=True,
+                    verify=api.verify,
+                    proxy=api.proxy,
+                    timeout=api.timeout,
                 )
 
-                # 如果需要下载图像
+                # If downloading example images
                 if with_images and image_limit > 0:
-                    # 创建线程下载示例图像
+                    # Create thread to download images
                     Thread(
                         target=download_model_images,
                         args=(
@@ -456,64 +514,78 @@ def create_app():
                 return f"下载出错: {str(e)}", 0
 
         def download_model_images(
-            api, downloader, model_id, version_id, limit, output_dir
-        ):
-            """后台下载模型的示例图像"""
+            api: CivitaiAPI, 
+            downloader: DownloadEngine, 
+            model_id: int, 
+            version_id: int, 
+            limit: int, 
+            output_dir: str
+        ) -> None:
+            """Background task to download model example images.
+            
+            Args:
+                api: API client
+                downloader: Download engine
+                model_id: Model ID
+                version_id: Version ID
+                limit: Maximum images to download
+                output_dir: Directory to save images
+            """
             try:
-                # 获取版本图像
+                # Get version images
                 images = api.get_version_images(version_id)
                 if not images:
                     print(f"版本 {version_id} 没有示例图像")
                     return
 
-                # 限制下载数量
+                # Limit number of images
                 images = images[:limit]
 
-                # 创建保存目录
+                # Create save directory
                 folder_name = f"model_{model_id}_examples_v{version_id}"
                 image_dir = os.path.join(output_dir, "images", folder_name)
                 os.makedirs(image_dir, exist_ok=True)
 
                 print(f"开始下载 {len(images)} 张示例图像到 {image_dir}")
 
-                # 下载图像
+                # Download images
                 for i, image in enumerate(images):
                     image_url = image.get("url")
                     if not image_url:
                         continue
 
-                    # 构建文件名
+                    # Build filename
                     filename = f"{model_id}_{i+1}_{os.path.basename(image_url)}"
-                    if not os.path.splitext(filename)[1]:  # 确保有扩展名
+                    if not os.path.splitext(filename)[1]:  # Ensure extension exists
                         filename += ".jpg"
 
-                    # 开始下载
+                    # Start download
                     try:
                         task = downloader.download(
                             url=image_url,
                             output_path=image_dir,
                             filename=filename,
-                            use_range=False,  # 图像通常不需要断点续传
+                            use_range=False,
                             verify=api.verify,
                             proxy=api.proxy,
                             timeout=api.timeout,
                         )
 
-                        # 等待下载完成
+                        # Wait for completion
                         task.wait()
 
-                        # 下载成功后处理元数据
+                        # Process metadata after download success
                         if task.status == "completed":
                             try:
                                 from civitai_dl.utils.metadata import (
                                     extract_image_metadata,
                                 )
 
-                                # 提取和保存元数据
+                                # Extract and save metadata
                                 image_path = os.path.join(image_dir, filename)
                                 metadata = extract_image_metadata(image_path)
                                 if metadata:
-                                    # 添加API元数据
+                                    # Add API metadata
                                     api_meta = {
                                         "id": image.get("id"),
                                         "model_id": model_id,
@@ -526,7 +598,7 @@ def create_app():
                                     }
                                     metadata.update(api_meta)
 
-                                    # 保存元数据
+                                    # Save metadata
                                     metadata_path = (
                                         os.path.splitext(image_path)[0] + ".meta.json"
                                     )
@@ -547,47 +619,25 @@ def create_app():
             except Exception as e:
                 print(f"下载示例图像时出错: {e}")
 
-        def on_search(query, types, sort, nsfw_flag):
-            """处理模型搜索请求"""
-            try:
-                # TODO: 实际实现应该调用API进行搜索，目前返回模拟数据
-                sort_map = {
-                    "Highest Rated": "Highest Rated",
-                    "Most Downloaded": "Most Downloaded",
-                    "Newest": "Newest",
-                }
-                sort_param = sort_map.get(sort, "Highest Rated")
-
-                # 调用API搜索
-                params = {
-                    "query": query,
-                    "modelType": types if types else None,
-                    "sort": sort_param,
-                    "nsfw": nsfw_flag,
-                }
-
-                # 这里是模拟的搜索结果，实际应用中应调用API
-                results = [
-                    [12345, "示例模型 1", "LORA", "创作者A", 1250, 4.8],
-                    [67890, "示例模型 2", "Checkpoint", "创作者B", 3400, 4.5],
-                    [54321, "示例模型 3", "TextualInversion", "创作者C", 800, 4.2],
-                ]
-
-                # 提示目前是示例数据
-                gr.Info("搜索功能仍在开发中，显示的是示例数据")
-
-                return {"data": results}
-
-            except Exception as e:
-                return {"data": [], "error": str(e)}
-
-        def on_image_search(model_id, version_id, nsfw_filter, gallery, limit):
-            """处理图像搜索和获取请求"""
+        def on_image_search(model_id: int, version_id: Optional[int], 
+                           nsfw_filter: str, gallery: bool, limit: int) -> Tuple[List[str], Dict[str, Any]]:
+            """Handle image search request.
+            
+            Args:
+                model_id: Model ID
+                version_id: Version ID (optional)
+                nsfw_filter: NSFW filter setting
+                gallery: Whether to include community gallery
+                limit: Maximum number of images
+                
+            Returns:
+                List of image URLs and metadata object
+            """
             if not model_id:
                 return [], {"error": "请输入有效的模型ID"}
 
             try:
-                # 使用ImageDownloader的search_images方法获取图像
+                # Use ImageDownloader to get images
                 gallery_images = image_downloader.search_images(
                     model_id=model_id,
                     version_id=version_id,
@@ -596,7 +646,7 @@ def create_app():
                     limit=limit,
                 )
 
-                # 如果没有获取到图像
+                # If no images found
                 if not gallery_images:
                     return [], {
                         "status": "warning",
@@ -610,35 +660,54 @@ def create_app():
                         },
                     }
 
-                # 返回图像和空元数据（元数据将由图像选择事件填充）
+                # Return images and empty metadata (will be filled by image selection)
                 return gallery_images, {}
             except Exception as e:
                 return [], {"error": f"获取图像出错: {str(e)}"}
 
-        def on_image_selected(evt: gr.SelectData, index=None):
-            """处理图像选择事件"""
+        def on_image_selected(evt: gr.SelectData, index: Optional[int] = None) -> Dict[str, Any]:
+            """Handle image selection event.
+            
+            Args:
+                evt: Selection event data
+                index: Optional explicitly provided index
+                
+            Returns:
+                Image metadata
+            """
             try:
-                # 使用event.index获取索引
+                # Get index from event or parameter
                 selected_index = evt.index if hasattr(evt, "index") else index
                 if selected_index is None:
                     return {"error": "未能获取选择的图像索引"}
 
-                # 使用ImageDownloader获取元数据
+                # Get metadata from ImageDownloader
                 metadata = image_downloader.get_image_metadata(selected_index)
                 return metadata
             except Exception as e:
                 import traceback
-
                 traceback.print_exc()
                 return {"error": f"获取图像元数据失败: {str(e)}"}
 
-        def on_download_images(model_id, version_id, nsfw_filter, gallery, limit):
-            """处理图像下载请求"""
+        def on_download_images(model_id: int, version_id: Optional[int],
+                              nsfw_filter: str, gallery: bool, limit: int) -> Dict[str, Any]:
+            """Handle image download request.
+            
+            Args:
+                model_id: Model ID
+                version_id: Version ID (optional)
+                nsfw_filter: NSFW filter setting
+                gallery: Whether to include community gallery
+                limit: Maximum number of images
+                
+            Returns:
+                Download result status
+            """
             if not model_id:
                 return {"error": "请输入有效的模型ID"}
 
             try:
-                # 使用ImageDownloader的download_images方法下载图像
+                # Use ImageDownloader to download images
                 result = image_downloader.download_images(
                     model_id=model_id,
                     version_id=version_id,
@@ -647,30 +716,47 @@ def create_app():
                     limit=limit,
                 )
 
-                # 返回下载结果
+                # Return download result
                 return {"status": "success", "message": result}
             except Exception as e:
                 return {"error": f"下载图像时出错: {str(e)}"}
 
         def save_settings(
-            api_key,
-            proxy,
-            theme,
-            output_dir,
-            concurrent,
-            chunk_size,
-            model_template,
-            image_template,
-            timeout,
-            max_retries,
-            verify_ssl,
-        ):
-            """保存应用设置"""
+            api_key: str,
+            proxy: str,
+            theme: str,
+            output_dir: str,
+            concurrent: int,
+            chunk_size: int,
+            model_template: str,
+            image_template: str,
+            timeout: int,
+            max_retries: int,
+            verify_ssl: bool,
+        ) -> str:
+            """Save application settings.
+            
+            Args:
+                api_key: Civitai API key
+                proxy: Proxy server address
+                theme: UI theme
+                output_dir: Default download directory
+                concurrent: Number of concurrent downloads
+                chunk_size: Download chunk size
+                model_template: Model path template
+                image_template: Image path template
+                timeout: Request timeout
+                max_retries: Maximum retry attempts
+                verify_ssl: Whether to verify SSL certificates
+                
+            Returns:
+                Status message
+            """
             try:
-                # 转换主题选项
+                # Convert theme option
                 theme_value = "light" if theme == "亮色" else "dark"
 
-                # 更新配置
+                # Update configuration
                 set_config_value("api_key", api_key)
                 set_config_value("proxy", proxy)
                 set_config_value("theme", theme_value)
@@ -683,7 +769,7 @@ def create_app():
                 set_config_value("max_retries", int(max_retries))
                 set_config_value("verify_ssl", verify_ssl)
 
-                # 更新API和下载引擎的配置
+                # Update API and download engine configuration
                 api.api_key = api_key
                 api.proxy = proxy
                 api.timeout = int(timeout)
@@ -698,13 +784,13 @@ def create_app():
             except Exception as e:
                 return f"保存设置失败: {str(e)}"
 
-        def update_progress():
-            """定时更新下载进度"""
+        def update_progress() -> None:
+            """Periodically update download progress."""
             while True:
-                # 休眠1秒
+                # Sleep for 1 second
                 time.sleep(1)
 
-                # 获取第一个正在下载的任务
+                # Get the first active download task
                 active_task = None
                 for task_id, task in download_tasks.items():
                     if task.status == "downloading":
@@ -712,28 +798,22 @@ def create_app():
                         break
 
                 if active_task:
-                    # 计算进度百分比
-                    progress = (
+                    # Calculate progress percentage
+                    progress_value = (
                         (active_task.downloaded / active_task.total) * 100
                         if active_task.total
                         else 0
                     )
-                    status = f"下载中: {active_task.filename} - {progress:.1f}%"
+                    status_text = f"下载中: {active_task.filename} - {progress_value:.1f}%"
 
-                    # 通过Gradio的queue更新UI（实际实现可能需要更复杂的机制）
-                    # 此处简化处理
+                    # Update UI via Gradio's queue (simplified for example)
+                    # In real implementation, needs more complex mechanism
 
-        # 绑定事件
+        # Connect event handlers
         download_btn.click(
             fn=on_download,
             inputs=[model_id, version_id, output_dir, with_images, image_limit],
             outputs=[status, progress],
-        )
-
-        search_btn.click(
-            fn=on_search,
-            inputs=[search_query, model_types, sort_options, nsfw],
-            outputs=[results],
         )
 
         search_images_btn.click(
@@ -748,7 +828,7 @@ def create_app():
             outputs=[image_gallery, image_metadata],
         )
 
-        # 添加图像选择事件处理
+        # Add image selection event handler
         image_gallery.select(fn=on_image_selected, inputs=None, outputs=image_metadata)
 
         download_images_btn.click(
@@ -781,7 +861,7 @@ def create_app():
             outputs=[settings_status],
         )
 
-        # 启动进度更新线程
+        # Start progress update thread
         Thread(target=update_progress, daemon=True).start()
 
     return app

@@ -1,4 +1,11 @@
-"""下载引擎模块，提供高效、可靠的文件下载能力"""
+"""Download engine for Civitai Downloader.
+
+Provides robust download capabilities with features like:
+- Concurrent downloads
+- Progress tracking
+- Resume support
+- Error handling and retries
+"""
 
 import os
 import re
@@ -6,7 +13,7 @@ import threading
 import time
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Dict, Any, Union, TypeVar
 
 import requests
 
@@ -14,40 +21,38 @@ from civitai_dl.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+T = TypeVar('T')  # Define a generic type variable for callbacks
+
 
 class DownloadTask:
-    """表示一个下载任务"""
+    """Represents a download task with progress tracking and control capabilities."""
 
     def __init__(
         self,
         url: str,
-        file_path=None,
-        output_path=None,
-        filename=None,
-        use_range=True,
-        headers=None,
-        verify=True,
-        proxy=None,
-            timeout=30,
-            chunk_size=8192,  # 添加 chunk_size 参数
-    ):
-        """
-        初始化下载任务
-        可以通过两种方式指定保存路径:
-        1. 直接使用 file_path 参数指定完整路径
-        2. 使用 output_path 和 filename 参数组合指定路径
-
+        file_path: Optional[str] = None,
+        output_path: Optional[str] = None,
+        filename: Optional[str] = None,
+        use_range: bool = True,
+        headers: Optional[Dict[str, str]] = None,
+        verify: bool = True,
+        proxy: Optional[str] = None,
+        timeout: int = 30,
+        chunk_size: int = 8192,
+    ) -> None:
+        """Initialize a download task.
+        
         Args:
-            url: 下载URL
-            file_path: 完整的保存路径 (优先于 output_path 和 filename)
-            output_path: 保存目录
-            filename: 文件名
-            use_range: 是否启用断点续传(Range请求)
-            headers: 自定义请求头
-            verify: 是否验证SSL证书
-            proxy: 代理服务器地址 (例如 'http://user:pass@host:port')
-            timeout: 请求超时时间（秒）
-            chunk_size: 下载块大小（字节），影响内存使用和网络效率
+            url: Download URL
+            file_path: Full path where the file should be saved
+            output_path: Directory to save the file
+            filename: Name of the file to save
+            use_range: Whether to use HTTP Range requests for resuming
+            headers: Custom HTTP headers
+            verify: Whether to verify SSL certificates
+            proxy: Proxy server URL
+            timeout: Request timeout in seconds
+            chunk_size: Download chunk size in bytes
         """
         self.url = url
         self.use_range = use_range
@@ -55,15 +60,15 @@ class DownloadTask:
         self.verify = verify
         self.proxy = proxy
         self.timeout = timeout
-        self.chunk_size = chunk_size  # 保存 chunk_size 参数
+        self.chunk_size = chunk_size
 
-        # 确定文件路径
+        # Determine file path
         if file_path:
             self._file_path = file_path
         elif output_path and filename:
             self._file_path = os.path.join(output_path, filename)
         else:
-            # 默认使用URL中的文件名，如果无法获取则生成一个
+            # Use filename from URL or generate one
             parsed_url = urllib.parse.urlparse(url)
             filename_from_url = os.path.basename(parsed_url.path)
             if not filename_from_url:
@@ -72,85 +77,115 @@ class DownloadTask:
             if output_path:
                 self._file_path = os.path.join(output_path, filename_from_url)
             else:
-                self._file_path = (
-                    filename_from_url  # Save in current directory if no path specified
-                )
+                self._file_path = filename_from_url
 
-        # 存储原始参数，方便调试或重新配置
+        # Store original parameters
         self.output_path = output_path
         self.filename = filename if filename else os.path.basename(self._file_path)
 
-        # 确保文件路径有合适的扩展名
+        # Ensure proper file extension
         self._file_path = self._ensure_proper_extension(self._file_path, self.url)
-        self.filename = os.path.basename(
-            self._file_path
-        )  # Update filename after ensuring extension
+        self.filename = os.path.basename(self._file_path)
 
-        # 下载状态和统计信息
+        # Download status and statistics
         self.total_size: Optional[int] = None
         self.downloaded_size: int = 0
-        self._progress_callback: Optional[Callable[[int, int], None]] = None
+        self._progress_callback: Optional[Callable[[int, Optional[int]], None]] = None
         self.status = "pending"  # pending, running, completed, failed, canceled
-        self.error = None
-        self._thread = None
+        self.error: Optional[str] = None
+        self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
-        self.start_time = None
-        self.end_time = None
-        self.speed = 0  # 下载速度 (bytes/s)
-        self._progress = 0.0  # 使用私有属性存储进度值
-        self._retry_count = 0  # 下载重试计数
-        self._completion_callbacks = (
-            []
-        )  # List to hold completion callbacks for this task
+        self.start_time: Optional[float] = None
+        self.end_time: Optional[float] = None
+        self.speed: float = 0.0  # download speed (bytes/s)
+        self._progress: float = 0.0
+        self._retry_count: int = 0
+        self._completion_callbacks: List[Callable[['DownloadTask'], None]] = []
+        self.task_id: str = ""  # Will be set by DownloadEngine
 
     @property
-    def progress(self):
-        """获取下载进度 (0.0 到 1.0)"""
+    def progress(self) -> float:
+        """Get download progress as a ratio between 0.0 and 1.0.
+        
+        Returns:
+            Progress ratio from 0.0 to 1.0
+        """
         if self.total_size and self.total_size > 0:
             return self.downloaded_size / self.total_size
         return self._progress
 
     @progress.setter
-    def progress(self, value):
-        """设置下载进度"""
+    def progress(self, value: float) -> None:
+        """Set download progress directly.
+        
+        Updates the internal progress ratio and downloaded size
+        if total size is known.
+        
+        Args:
+            value: Progress value from 0.0 to 1.0
+        """
         if value < 0:
             value = 0
         elif value > 1:
             value = 1
         self._progress = value
 
-        # 如果有总大小，也更新已下载大小
+        # If total size is known, update downloaded size accordingly
         if self.total_size:
             self.downloaded_size = int(self.total_size * value)
 
     @property
-    def file_path(self):
-        """获取文件路径"""
+    def file_path(self) -> str:
+        """Get the full file path for this download.
+        
+        Returns:
+            Absolute file path
+        """
         return self._file_path
 
     @file_path.setter
-    def file_path(self, value):
-        """设置文件路径"""
+    def file_path(self, value: str) -> None:
+        """Set a new file path for this download.
+        
+        Updates the internal file path and filename.
+        
+        Args:
+            value: New file path
+        """
         self._file_path = value
-        # 更新文件名
+        # Update filename when path changes
         self.filename = os.path.basename(value)
 
     def _ensure_proper_extension(self, file_path: str, url: str) -> str:
-        """确保文件路径有合适的扩展名"""
-        # 检查文件是否已有扩展名
+        """Ensure the file path has a proper extension.
+        
+        Examines the file path and URL to determine the appropriate file extension.
+        If no extension is found, adds a default extension.
+        
+        Args:
+            file_path: Original file path to check and possibly modify
+            url: Download URL that may contain extension information
+            
+        Returns:
+            File path with proper extension
+        """
+        # Check if file already has an extension
         _, ext = os.path.splitext(file_path)
         if ext and len(ext) > 1:
+            logger.debug(f"File already has extension: {ext}")
             return file_path
 
-        # 从URL中尝试获取扩展名
+        # Try to get extension from URL
         url_path = urllib.parse.urlparse(url).path
         _, url_ext = os.path.splitext(url_path)
 
-        # 如果URL中有扩展名，使用它
+        # If URL has extension, use it
         if url_ext and len(url_ext) > 1:
+            logger.debug(f"Using extension from URL: {url_ext}")
             return f"{file_path}{url_ext}"
 
-        # 默认使用safetensors作为扩展名（最常用的模型格式）
+        # Use default extension for AI models
+        logger.debug("No extension found, using default .safetensors extension")
         return f"{file_path}.safetensors"
 
     @property

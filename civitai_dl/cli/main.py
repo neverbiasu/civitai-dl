@@ -1,6 +1,5 @@
 """Command-line interface for Civitai Downloader."""
 
-from civitai_dl.cli.commands.browse import browse as browse_commands
 import logging
 import sys
 import os
@@ -9,8 +8,9 @@ from importlib import import_module
 import click
 
 from civitai_dl import __version__
-from civitai_dl.cli.commands.config import config  # 导入配置命令模块
+from civitai_dl.cli.commands.config import config
 from civitai_dl.cli.commands.download import download
+from civitai_dl.cli.commands.browse import browse as browse_commands
 from civitai_dl.utils.logger import get_logger, setup_logging
 
 logger = get_logger(__name__)
@@ -18,80 +18,94 @@ logger = get_logger(__name__)
 
 @click.group()
 @click.version_option(version=__version__)
-@click.option("--verbose", "-v", count=True, help="增加详细程度")
-@click.option("--quiet", "-q", is_flag=True, help="静默模式")
-def cli(verbose=0, quiet=False):
-    """Civitai Downloader - 下载和管理Civitai资源"""
-    # 设置日志级别
+@click.option("--verbose", "-v", count=True, help="Increase verbosity level")
+@click.option("--quiet", "-q", is_flag=True, help="Silent mode, errors only")
+def cli(verbose: int = 0, quiet: bool = False) -> None:
+    """Civitai Downloader - Download and manage Civitai resources."""
+    # Set logging level based on options
     if quiet:
-        log_level = logging.ERROR  # 静默模式下只显示错误
+        log_level = logging.ERROR  # Only show errors in quiet mode
     else:
-        # 根据verbose的计数决定日志级别
+        # Determine level based on verbosity count
         log_levels = [logging.INFO, logging.DEBUG, logging.NOTSET]
-        # 确保索引不越界
+        # Ensure index doesn't exceed available levels
         level_index = min(verbose, len(log_levels) - 1)
         log_level = log_levels[level_index]
 
-    # 初始化日志系统
+    # Initialize logging system
     setup_logging(log_level)
 
-    # 根据日志级别输出不同的消息
+    # Log appropriate message based on level
     if log_level == logging.DEBUG:
-        logger.debug("调试模式已启用")
+        logger.debug("Debug mode enabled")
     elif log_level == logging.INFO:
-        logger.info("详细日志模式已启用")
+        logger.info("Verbose logging enabled")
 
 
-# 动态导入命令模块
-def import_commands():
-    """动态导入所有命令模块"""
+def import_commands() -> None:
+    """Dynamically import all command modules from the commands directory.
+    
+    Searches the commands directory for Python modules and imports them,
+    registering any commands with matching names to the CLI.
+    """
     commands_dir = os.path.join(os.path.dirname(__file__), "commands")
-    for filename in os.listdir(commands_dir):
-        if filename.endswith(".py") and not filename.startswith("__"):
-            module_name = filename[:-3]  # 去掉.py后缀
-            module = import_module(f"civitai_dl.cli.commands.{module_name}")
-            if hasattr(module, module_name):
-                command = getattr(module, module_name)
-                cli.add_command(command)
+    
+    try:
+        for filename in os.listdir(commands_dir):
+            if filename.endswith(".py") and not filename.startswith("__"):
+                module_name = filename[:-3]  # Remove .py extension
+                try:
+                    module = import_module(f"civitai_dl.cli.commands.{module_name}")
+                    if hasattr(module, module_name):
+                        command = getattr(module, module_name)
+                        cli.add_command(command)
+                        logger.debug(f"Imported command module: {module_name}")
+                    else:
+                        logger.debug(f"Module {module_name} does not define a matching command")
+                except ImportError as e:
+                    logger.warning(f"Failed to import {module_name}: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error scanning commands directory: {str(e)}")
 
 
-# 注册命令组
+# Register command groups
 cli.add_command(download)
-cli.add_command(config)  # 注册配置命令
-# 注册其他命令组...
-import_commands()
+cli.add_command(config)
 
 
 @cli.command()
-def webui():
-    """启动Web图形界面"""
+def webui() -> None:
+    """Launch the web-based user interface."""
     try:
         from civitai_dl.webui.app import create_app
 
         app = create_app()
-        click.echo("启动WebUI界面，请在浏览器中访问...")
+        click.echo("Starting WebUI interface, access in your browser...")
         app.launch(server_name="0.0.0.0", server_port=7860)
     except ImportError as e:
-        click.echo(f"启动WebUI失败: {str(e)}", err=True)
-        click.echo("请确保已安装所有必要的依赖(gradio)", err=True)
+        click.echo(f"Failed to start WebUI: {str(e)}", err=True)
+        click.echo("Please ensure all necessary dependencies are installed (gradio)", err=True)
         sys.exit(1)
 
 
 @cli.group()
-def browse():
-    """浏览和搜索Civitai上的模型"""
+def browse() -> None:
+    """Browse and search models on Civitai."""
 
 
-# 删除现有的browse_models命令实现，我们会从browse.py导入完整版本
-
-# 将browse.py中的命令添加到browse命令组
+# Add commands from browse.py to the browse command group
 for command in getattr(browse_commands, 'commands', {}).values():
     browse.add_command(command)
 
 
-def main():
-    """主入口函数"""
-    cli()
+def main() -> None:
+    """Main entry point for the CLI application."""
+    try:
+        cli()
+    except Exception as e:
+        logger.exception(f"Unhandled error: {str(e)}")
+        click.echo(f"Error: {str(e)}", err=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

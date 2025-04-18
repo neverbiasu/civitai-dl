@@ -4,96 +4,99 @@ import json
 import logging
 import operator
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, TypeVar
 
-# 配置日志
+# Configure logging
 logger = logging.getLogger(__name__)
 
-# 筛选操作符映射
+# Type variable for flexible return types
+T = TypeVar('T')
+
+# Operator mappings as module constants
 OPERATORS = {
-    "eq": operator.eq,            # 等于
-    "ne": operator.ne,            # 不等于
-    "lt": operator.lt,            # 小于
-    "le": operator.le,            # 小于等于
-    "gt": operator.gt,            # 大于
-    "ge": operator.ge,            # 大于等于
-    "in": lambda x, y: x in y,    # 包含于
-    "nin": lambda x, y: x not in y,  # 不包含于
-    "contains": lambda x, y: y in x if isinstance(x, str) else False,  # 字符串包含
-    "startswith": lambda x, y: x.startswith(y) if isinstance(x, str) else False,  # 字符串开头
-    "endswith": lambda x, y: x.endswith(y) if isinstance(x, str) else False,     # 字符串结尾
-    "regex": lambda x, y: bool(re.search(y, x)) if isinstance(x, str) else False,  # 正则匹配
+    "eq": operator.eq,            # Equal
+    "ne": operator.ne,            # Not equal
+    "lt": operator.lt,            # Less than
+    "le": operator.le,            # Less than or equal
+    "gt": operator.gt,            # Greater than
+    "ge": operator.ge,            # Greater than or equal
+    "in": lambda x, y: x in y,    # In collection
+    "nin": lambda x, y: x not in y,  # Not in collection
+    "contains": lambda x, y: y in x if isinstance(x, str) else False,  # String contains
+    "startswith": lambda x, y: x.startswith(y) if isinstance(x, str) else False,  # String starts with
+    "endswith": lambda x, y: x.endswith(y) if isinstance(x, str) else False,     # String ends with
+    "regex": lambda x, y: bool(re.search(y, x)) if isinstance(x, str) else False,  # Regex match
 }
 
-# 逻辑操作符
+# Logic operators set
 LOGIC_OPS = {"and", "or", "not"}
 
 
 class FilterCondition:
-    """筛选条件表达式"""
+    """Represents a filter condition expression that can be evaluated against data items."""
 
     def __init__(self, condition: Dict[str, Any]):
-        """初始化筛选条件
+        """Initialize and validate a filter condition.
 
         Args:
-            condition: 条件字典
+            condition: Condition dictionary defining filter rules
         """
         self.condition = condition
         self._validate_condition(condition)
 
     def _validate_condition(self, condition: Dict[str, Any]) -> None:
-        """验证条件格式是否有效
+        """Validate condition format and structure.
 
         Args:
-            condition: 条件字典
+            condition: Condition dictionary to validate
 
         Raises:
-            ValueError: 条件格式无效
+            ValueError: When condition format is invalid
         """
-        # 检查逻辑操作符
+        # Check for logic operators
         if any(op in condition for op in LOGIC_OPS):
-            # 逻辑条件
+            # Logic condition
             logic_ops = [op for op in LOGIC_OPS if op in condition]
             if len(logic_ops) != 1:
-                raise ValueError(f"只能有一个逻辑操作符: {condition}")
+                raise ValueError(f"Only one logic operator allowed: {condition}")
 
             logic_op = logic_ops[0]
             if logic_op == "not":
                 if not isinstance(condition["not"], dict):
-                    raise ValueError(f"'not'操作符需要一个条件字典: {condition}")
+                    raise ValueError(f"'not' operator requires a condition dictionary: {condition}")
             else:  # and, or
                 if not isinstance(condition[logic_op], list) or len(condition[logic_op]) < 1:
-                    raise ValueError(f"'{logic_op}'操作符需要一个条件列表: {condition}")
+                    raise ValueError(f"'{logic_op}' operator requires a list of conditions: {condition}")
         else:
-            # 简单条件
+            # Simple condition
             if "field" not in condition or "op" not in condition or "value" not in condition:
-                raise ValueError(f"简单条件需要'field'、'op'和'value'键: {condition}")
+                raise ValueError(f"Simple condition requires 'field', 'op', and 'value' keys: {condition}")
 
             if condition["op"] not in OPERATORS:
-                raise ValueError(f"不支持的操作符: {condition['op']}")
+                raise ValueError(f"Unsupported operator: {condition['op']}")
 
     def match(self, item: Dict[str, Any]) -> bool:
-        """判断一个项是否匹配条件
+        """Check if an item matches the condition.
 
         Args:
-            item: 要匹配的项
+            item: Data item to match against the condition
 
         Returns:
-            是否匹配
+            True if the item matches, False otherwise
         """
         return self._evaluate(self.condition, item)
 
     def _evaluate(self, condition: Dict[str, Any], item: Dict[str, Any]) -> bool:
-        """递归评估条件
+        """Recursively evaluate condition against an item.
 
         Args:
-            condition: 条件字典
-            item: 要匹配的项
+            condition: Condition dictionary or sub-condition
+            item: Data item to match
 
         Returns:
-            是否匹配
+            True if the item matches the condition, False otherwise
         """
-        # 处理逻辑操作符
+        # Handle logic operators
         if "and" in condition:
             return all(self._evaluate(subcond, item) for subcond in condition["and"])
 
@@ -103,47 +106,47 @@ class FilterCondition:
         if "not" in condition:
             return not self._evaluate(condition["not"], item)
 
-        # 处理简单条件
+        # Handle simple condition
         field = condition["field"]
         op = condition["op"]
         value = condition["value"]
 
-        # 处理嵌套字段 (例如 "creator.username")
+        # Handle nested fields (e.g., "creator.username")
         field_value = item
         for part in field.split('.'):
             if isinstance(field_value, dict) and part in field_value:
                 field_value = field_value[part]
             else:
-                # 如果字段不存在，视为不匹配
+                # If field doesn't exist, consider not a match
                 return False
 
-        # 处理类型转换
+        # Handle type conversion for numerical comparisons
         if isinstance(value, str) and isinstance(field_value, (int, float)):
             try:
                 value = type(field_value)(value)
             except (ValueError, TypeError):
                 return False
 
-        # 应用操作符
+        # Apply operator
         try:
             return OPERATORS[op](field_value, value)
         except Exception as e:
-            logger.debug(f"筛选条件评估错误: {op}({field_value}, {value}): {str(e)}")
+            logger.debug(f"Filter condition evaluation error: {op}({field_value}, {value}): {str(e)}")
             return False
 
 
 class FilterParser:
-    """筛选条件解析器，用于解析和转换不同格式的筛选条件"""
+    """Filter condition parser for parsing and converting different formats of filter conditions."""
 
     @staticmethod
     def parse_query_string(query: str) -> Dict[str, Any]:
-        """解析简单查询字符串为条件字典
+        """Parse a simple query string into a condition dictionary.
 
         Args:
-            query: 查询字符串 (例如 "type:LORA rating:>4.5")
+            query: Query string (e.g., "type:LORA rating:>4.5")
 
         Returns:
-            条件字典
+            Condition dictionary
         """
         if not query.strip():
             return {}
@@ -155,12 +158,12 @@ class FilterParser:
             if not field or not value:
                 continue
 
-            # 处理引号
+            # Handle quotes
             if value.startswith('"') and value.endswith('"'):
                 value = value[1:-1]
 
-            # 映射操作符
-            op = "eq"  # 默认等于
+            # Map operators
+            op = "eq"  # Default to equal
             if op_str:
                 if op_str == '>':
                     op = "gt"
@@ -181,7 +184,7 @@ class FilterParser:
                 "value": value
             })
 
-        # 如果有多个条件，组合为AND
+        # Combine multiple conditions with AND
         if len(conditions) > 1:
             return {"and": conditions}
         elif len(conditions) == 1:
@@ -191,38 +194,38 @@ class FilterParser:
 
     @staticmethod
     def parse_json(json_str: str) -> Dict[str, Any]:
-        """解析JSON格式的筛选条件
+        """Parse JSON formatted filter condition.
 
         Args:
-            json_str: JSON字符串
+            json_str: JSON string
 
         Returns:
-            条件字典
+            Condition dictionary
 
         Raises:
-            ValueError: JSON格式无效
+            ValueError: When JSON format is invalid
         """
         try:
             condition = json.loads(json_str)
-            # 验证结构
+            # Validate structure
             FilterCondition(condition)
             return condition
         except json.JSONDecodeError as e:
-            raise ValueError(f"无效的JSON格式: {str(e)}")
+            raise ValueError(f"Invalid JSON format: {str(e)}")
 
     @staticmethod
     def parse_cli_params(params: Dict[str, Any]) -> Dict[str, Any]:
-        """将CLI参数转换为筛选条件
+        """Convert CLI parameters to filter condition.
 
         Args:
-            params: CLI参数字典
+            params: CLI parameter dictionary
 
         Returns:
-            条件字典
+            Condition dictionary
         """
         conditions = []
 
-        # 映射CLI参数到筛选条件
+        # Map CLI parameters to filter conditions
         mapping = {
             "query": {"field": "name", "op": "contains"},
             "type": {"field": "type", "op": "eq"},
@@ -244,7 +247,7 @@ class FilterParser:
                     "value": value
                 })
 
-        # 如果有多个条件，组合为AND
+        # Combine multiple conditions with AND
         if len(conditions) > 1:
             return {"and": conditions}
         elif len(conditions) == 1:
@@ -254,23 +257,23 @@ class FilterParser:
 
     @staticmethod
     def to_api_params(condition: Dict[str, Any]) -> Dict[str, Any]:
-        """将筛选条件转换为API参数
+        """Convert filter condition to API parameters.
 
         Args:
-            condition: 筛选条件
+            condition: Filter condition
 
         Returns:
-            API参数字典
+            API parameter dictionary
         """
-        # 处理为空的情况
+        # Handle empty condition
         if not condition:
             return {}
 
-        # 如果是简单条件，直接映射
+        # Directly map simple condition
         if "field" in condition and "op" in condition and "value" in condition:
             return FilterParser._map_condition_to_param(condition)
 
-        # 处理复合条件 (AND/OR)
+        # Handle compound conditions (AND/OR)
         if "and" in condition:
             params = {}
             for subcond in condition["and"]:
@@ -278,97 +281,97 @@ class FilterParser:
             return params
 
         if "or" in condition:
-            # CivitAI API不直接支持OR，我们只转换第一个条件
-            # 其余条件需要在客户端过滤
+            # CivitAI API does not directly support OR, convert only the first condition
+            # Remaining conditions need to be filtered on the client side
             if condition["or"]:
                 return FilterParser.to_api_params(condition["or"][0])
             return {}
 
         if "not" in condition:
-            # CivitAI API不直接支持NOT，我们忽略这个条件
-            # 需要在客户端过滤
+            # CivitAI API does not directly support NOT, ignore this condition
+            # Needs to be filtered on the client side
             return {}
 
-        # 未知条件类型
+        # Unknown condition type
         return {}
 
     @staticmethod
     def _map_condition_to_param(condition: Dict[str, Any]) -> Dict[str, Any]:
-        """将单个条件映射到API参数
+        """Map a single condition to API parameters.
 
         Args:
-            condition: 单个筛选条件
+            condition: Single filter condition
 
         Returns:
-            API参数字典
+            API parameter dictionary
         """
         field = condition["field"]
         op = condition["op"]
         value = condition["value"]
 
-        # 字段映射到API参数
+        # Field mapping to API parameters
         field_mapping = {
             "name": "query",
             "type": "types",
             "creator.username": "username",
             "tags": "tag",
             "modelVersions.baseModel": "baseModel",
-            # 评分和下载量等需要在客户端筛选
+            # Rating and download count need to be filtered on the client side
         }
 
-        # 操作符映射
+        # Operator mapping
         op_mapping = {
-            "eq": "",     # 直接使用值
-            "in": "",     # 对于tags，直接使用值
-            "contains": "",  # 对于name，就是query参数
+            "eq": "",     # Directly use value
+            "in": "",     # For tags, directly use value
+            "contains": "",  # For name, it's the query parameter
         }
 
-        # 如果字段可以映射到API参数
+        # If field can be mapped to API parameters
         if field in field_mapping:
             param_name = field_mapping[field]
 
-            # 如果操作符支持直接映射
+            # If operator supports direct mapping
             if op in op_mapping:
                 return {param_name: value}
 
-        # 对于不能直接映射的条件，返回空字典
-        # 这些条件需要在客户端筛选
+        # For conditions that cannot be directly mapped, return an empty dictionary
+        # These conditions need to be filtered on the client side
         return {}
 
 
 class FilterManager:
-    """筛选管理器，用于存储和加载筛选模板"""
+    """Filter manager for storing and loading filter templates."""
 
     def __init__(self, templates_file: str = None):
-        """初始化筛选管理器
+        """Initialize filter manager.
 
         Args:
-            templates_file: 模板文件路径
+            templates_file: Template file path
         """
         self.templates_file = templates_file or self._get_default_templates_path()
         self.templates = self._load_templates()
         self.history = []
 
-        # 如果没有模板，添加默认模板
+        # Add default templates if none exist
         if not self.templates:
             self._add_default_templates()
 
     def _get_default_templates_path(self) -> str:
-        """获取默认的模板文件路径
+        """Get the default template file path.
 
         Returns:
-            默认模板文件路径
+            Default template file path
         """
-        # 使用用户主目录下的配置目录
+        # Use configuration directory in user's home directory
         config_dir = os.path.join(os.path.expanduser("~"), ".civitai-downloader")
         os.makedirs(config_dir, exist_ok=True)
         return os.path.join(config_dir, "filter_templates.json")
 
     def _load_templates(self) -> Dict[str, Dict[str, Any]]:
-        """加载筛选模板
+        """Load filter templates.
 
         Returns:
-            模板字典 {名称: 条件}
+            Template dictionary {name: condition}
         """
         try:
             if not os.path.exists(self.templates_file):
@@ -377,60 +380,60 @@ class FilterManager:
             with open(self.templates_file, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
-            logger.warning(f"加载筛选模板失败: {str(e)}")
+            logger.warning(f"Failed to load filter templates: {str(e)}")
             return {}
 
     def _save_templates(self) -> bool:
-        """保存筛选模板
+        """Save filter templates.
 
         Returns:
-            是否成功
+            True if successful, False otherwise
         """
         try:
-            # 确保目录存在
+            # Ensure directory exists
             os.makedirs(os.path.dirname(self.templates_file), exist_ok=True)
 
             with open(self.templates_file, 'w', encoding='utf-8') as f:
                 json.dump(self.templates, f, indent=4, ensure_ascii=False)
             return True
         except Exception as e:
-            logger.error(f"保存筛选模板失败: {str(e)}")
+            logger.error(f"Failed to save filter templates: {str(e)}")
             return False
 
     def _add_default_templates(self) -> None:
-        """添加默认的筛选模板"""
+        """Add default filter templates."""
         for name, template in DEFAULT_TEMPLATES.items():
             self.add_template(name, template)
 
     def add_template(self, name: str, condition: Dict[str, Any]) -> bool:
-        """添加筛选模板
+        """Add a filter template.
 
         Args:
-            name: 模板名称
-            condition: 筛选条件
+            name: Template name
+            condition: Filter condition
 
         Returns:
-            是否成功
+            True if successful, False otherwise
         """
         try:
-            # 验证条件格式
+            # Validate condition format
             FilterCondition(condition)
 
-            # 保存模板
+            # Save template
             self.templates[name] = condition
             return self._save_templates()
         except Exception as e:
-            logger.error(f"添加筛选模板失败: {str(e)}")
+            logger.error(f"Failed to add filter template: {str(e)}")
             return False
 
     def remove_template(self, name: str) -> bool:
-        """删除筛选模板
+        """Remove a filter template.
 
         Args:
-            name: 模板名称
+            name: Template name
 
         Returns:
-            是否成功
+            True if successful, False otherwise
         """
         if name not in self.templates:
             return False
@@ -439,62 +442,62 @@ class FilterManager:
         return self._save_templates()
 
     def get_template(self, name: str) -> Optional[Dict[str, Any]]:
-        """获取筛选模板
+        """Get a filter template.
 
         Args:
-            name: 模板名称
+            name: Template name
 
         Returns:
-            筛选条件，如果不存在则返回None
+            Filter condition, or None if not found
         """
         return self.templates.get(name)
 
     def list_templates(self) -> Dict[str, Dict[str, Any]]:
-        """列出所有筛选模板
+        """List all filter templates.
 
         Returns:
-            模板字典
+            Template dictionary
         """
         return self.templates.copy()
 
     def add_to_history(self, condition: Dict[str, Any]) -> None:
-        """添加筛选条件到历史记录
+        """Add filter condition to history.
 
         Args:
-            condition: 筛选条件
+            condition: Filter condition
         """
-        # 添加到历史记录开头
+        # Add to the beginning of history
         self.history.insert(0, {
             "condition": condition,
             "timestamp": datetime.now().isoformat()
         })
 
-        # 限制历史记录长度
+        # Limit history length
         if len(self.history) > 20:
             self.history = self.history[:20]
 
     def get_history(self) -> List[Dict[str, Any]]:
-        """获取筛选历史记录
+        """Get filter history.
 
         Returns:
-            历史记录列表
+            History list
         """
         return self.history.copy()
 
     def clear_history(self) -> None:
-        """清空历史记录"""
+        """Clear history."""
         self.history = []
 
 
 def apply_filter(items: List[Dict[str, Any]], condition: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """应用筛选条件到项目列表
+    """Apply filter condition to a list of items.
 
     Args:
-        items: 项目列表
-        condition: 筛选条件
+        items: List of items
+        condition: Filter condition
 
     Returns:
-        筛选后的项目列表
+        Filtered list of items
     """
     if not condition:
         return items
@@ -503,26 +506,26 @@ def apply_filter(items: List[Dict[str, Any]], condition: Dict[str, Any]) -> List
         filter_condition = FilterCondition(condition)
         return [item for item in items if filter_condition.match(item)]
     except Exception as e:
-        logger.error(f"应用筛选条件失败: {str(e)}")
+        logger.error(f"Failed to apply filter condition: {str(e)}")
         return items
 
 
 def sort_results(items: List[Dict[str, Any]], sort_by: str, ascending: bool = False) -> List[Dict[str, Any]]:
-    """对结果进行排序
+    """Sort results.
 
     Args:
-        items: 项目列表
-        sort_by: 排序字段
-        ascending: 是否升序排序
+        items: List of items
+        sort_by: Sort field
+        ascending: Whether to sort in ascending order
 
     Returns:
-        排序后的项目列表
+        Sorted list of items
     """
     if not sort_by:
         return items
 
     def get_value(item, field):
-        """安全获取嵌套字段的值"""
+        """Safely get the value of a nested field."""
         value = item
         for part in field.split('.'):
             if isinstance(value, dict) and part in value:
@@ -539,20 +542,20 @@ def sort_results(items: List[Dict[str, Any]], sort_by: str, ascending: bool = Fa
         )
         return sorted_items
     except Exception as e:
-        logger.error(f"排序失败: {str(e)}")
+        logger.error(f"Failed to sort: {str(e)}")
         return items
 
 
-# 样例筛选模板
+# Sample filter templates
 DEFAULT_TEMPLATES = {
-    "高质量LORA": {
+    "High Quality LORA": {
         "and": [
             {"field": "type", "op": "eq", "value": "LORA"},
             {"field": "stats.rating", "op": "ge", "value": 4.5},
             {"field": "stats.downloadCount", "op": "ge", "value": 1000}
         ]
     },
-    "新人气Checkpoint": {
+    "New Popular Checkpoint": {
         "and": [
             {"field": "type", "op": "eq", "value": "Checkpoint"},
             {"field": "stats.downloadCount", "op": "ge", "value": 500},

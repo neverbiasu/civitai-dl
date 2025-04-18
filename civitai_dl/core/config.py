@@ -1,42 +1,49 @@
+"""Configuration management for Civitai Downloader.
+
+Provides functionality for loading, saving, and accessing application configuration.
+"""
+
 import os
 import json
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 
-# 配置日志
+# Configure logging
 logger = logging.getLogger(__name__)
 
-# 默认配置路径
+# Constants
 DEFAULT_CONFIG_PATH = os.path.expanduser("~/.civitai-downloader/config.json")
-
-# 最近使用的目录数量
 RECENT_DIRS_MAX = 10
 
 
 class ConfigManager:
-    """配置管理类，负责读取和保存用户配置"""
+    """Configuration manager for storing and retrieving application settings."""
 
-    def __init__(self, config_path: str = DEFAULT_CONFIG_PATH):
-        """初始化配置管理器
-
+    def __init__(self, config_path: str = DEFAULT_CONFIG_PATH) -> None:
+        """Initialize configuration manager.
+        
         Args:
-            config_path: 配置文件路径
+            config_path: Path to configuration file
         """
         self.config_path = config_path
         self.config = self._load_config()
 
     def _load_config(self) -> Dict[str, Any]:
-        """从文件加载配置，如果文件不存在则返回默认配置"""
+        """Load configuration from file or use defaults.
+        
+        Returns:
+            Configuration dictionary
+        """
         try:
             if not os.path.exists(self.config_path):
-                # 确保配置目录存在
+                # Ensure config directory exists
                 os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
                 return self._get_default_config()
 
             with open(self.config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
 
-            # 确保所有必要的配置项都存在
+            # Ensure all required config keys exist
             default_config = self._get_default_config()
             for key, value in default_config.items():
                 if key not in config:
@@ -44,11 +51,15 @@ class ConfigManager:
 
             return config
         except Exception as e:
-            logger.warning(f"加载配置失败: {str(e)}，使用默认配置")
+            logger.warning(f"Failed to load configuration: {str(e)}, using defaults")
             return self._get_default_config()
 
     def _get_default_config(self) -> Dict[str, Any]:
-        """返回默认配置"""
+        """Get default configuration settings.
+        
+        Returns:
+            Default configuration dictionary
+        """
         return {
             "api_key": "",
             "proxy": "",
@@ -67,67 +78,82 @@ class ConfigManager:
                 "Controlnet": "ControlNets",
                 "Poses": "Poses"
             },
-            "ask_download_location": False,  # 新选项：是否每次下载前询问目标位置
-            "use_original_filename": True,   # 新选项：是否使用原始文件名
-            "file_exists_action": "ask",     # 新选项：文件已存在时的操作 (ask/overwrite/rename/skip)
-            "recent_directories": [],        # 新列表：最近使用的目录
+            "ask_download_location": False,
+            "use_original_filename": True,
+            "file_exists_action": "ask",
+            "recent_directories": [],
             "theme": "light"
         }
 
     def save_config(self) -> bool:
-        """保存配置到文件
-
+        """Save configuration to file.
+        
+        Ensures the directory exists before writing the configuration file
+        and handles various error conditions gracefully.
+        
         Returns:
-            保存是否成功
+            True if save was successful, False otherwise
         """
         try:
-            # 确保配置目录存在
-            os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
+            # Ensure config directory exists
+            config_dir = os.path.dirname(self.config_path)
+            os.makedirs(config_dir, exist_ok=True)
+            logger.debug(f"Ensuring config directory exists: {config_dir}")
 
+            # Write config with proper formatting
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, indent=4, ensure_ascii=False)
+            
+            logger.debug(f"Configuration saved to {self.config_path}")
             return True
+            
+        except OSError as e:
+            logger.error(f"Failed to create directory for config: {str(e)}")
+            return False
+        except IOError as e:
+            logger.error(f"Failed to write config file: {str(e)}")
+            return False
         except Exception as e:
-            logger.error(f"保存配置失败: {str(e)}")
+            logger.error(f"Failed to save configuration: {str(e)}")
             return False
 
-    def get(self, key: str, default=None) -> Any:
-        """获取配置项的值
+    def get(self, key: str, default: Optional[Any] = None) -> Any:
+        """Get a configuration value.
 
         Args:
-            key: 配置项键名
-            default: 如果键不存在，返回的默认值
+            key: Configuration key name
+            default: Value to return if key doesn't exist
 
         Returns:
-            配置项的值
+            Configuration value or default if not found
         """
         return self.config.get(key, default)
 
     def set(self, key: str, value: Any) -> bool:
-        """设置配置项的值
+        """Set a configuration value.
 
         Args:
-            key: 配置项键名
-            value: 配置项的新值
+            key: Configuration key name
+            value: New value for the configuration key
 
         Returns:
-            设置是否成功
+            True if the value was set successfully, False otherwise
         """
         self.config[key] = value
         return self.save_config()
 
     def get_download_dir(self, model_type: Optional[str] = None) -> str:
-        """获取下载目录，可以根据模型类型获取不同的子目录
+        """Get the download directory, optionally for a specific model type.
 
         Args:
-            model_type: 模型类型
+            model_type: Model type
 
         Returns:
-            下载目录路径
+            Download directory path
         """
         base_dir = self.config.get("output_dir", os.path.join(os.getcwd(), "downloads"))
 
-        # 如果指定了模型类型，返回对应的子目录
+        # If a model type is specified, return the corresponding subdirectory
         if model_type and model_type in self.config.get("model_type_dirs", {}):
             type_dir = self.config["model_type_dirs"][model_type]
             return os.path.join(base_dir, type_dir)
@@ -135,71 +161,71 @@ class ConfigManager:
         return base_dir
 
     def add_recent_directory(self, directory: str) -> None:
-        """添加一个目录到最近使用目录列表
+        """Add a directory to the list of recent directories.
 
         Args:
-            directory: 目录路径
+            directory: Directory path
         """
-        # 确保recent_directories存在
+        # Ensure recent_directories exists
         if "recent_directories" not in self.config:
             self.config["recent_directories"] = []
 
-        # 如果目录已在列表中，先移除
+        # If the directory is already in the list, remove it first
         if directory in self.config["recent_directories"]:
             self.config["recent_directories"].remove(directory)
 
-        # 添加到列表开头
+        # Add to the beginning of the list
         self.config["recent_directories"].insert(0, directory)
 
-        # 限制列表长度
+        # Limit the list length
         self.config["recent_directories"] = self.config["recent_directories"][:RECENT_DIRS_MAX]
 
-        # 保存配置
+        # Save configuration
         self.save_config()
 
     def get_recent_directories(self) -> List[str]:
-        """获取最近使用的目录列表
+        """Get the list of recent directories.
 
         Returns:
-            目录路径列表
+            List of directory paths
         """
         return self.config.get("recent_directories", [])
 
 
-# 创建全局配置管理器实例
+# Create a global instance of the configuration manager
 config_manager = ConfigManager()
 
 
 def get_config() -> Dict[str, Any]:
-    """获取当前配置
+    """Get the current configuration.
 
     Returns:
-        配置字典
+        Configuration dictionary
     """
     return config_manager.config
 
 
 def set_config_value(key: str, value: Any) -> bool:
-    """设置配置项的值
+    """Set a configuration value.
 
     Args:
-        key: 配置项键名
-        value: 配置项的新值
+        key: Configuration key name
+        value: New value for the configuration key
 
     Returns:
-        设置是否成功
+        True if the value was set successfully, False otherwise
     """
     return config_manager.set(key, value)
 
 
-def get_config_value(key: str, default=None) -> Any:
-    """获取配置项的值
+def get_config_value(key: str, default: Optional[Any] = None) -> Any:
+    """Get a configuration value.
 
     Args:
-        key: 配置项键名
-        default: 如果键不存在，返回的默认值
+        key: Configuration key name
+        default: Value to return if key doesn't exist
 
     Returns:
-        配置项的值
+        Configuration value or default if not found
     """
     return config_manager.get(key, default)
