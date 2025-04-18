@@ -1,8 +1,7 @@
 [flake8]
+ignore = F841, W503, W504
+per-file-ignores = 
+    civitai_dl/webui/components/*.py:F841
 max-line-length = 120
-exclude = 
-    .git,
-    __pycache__,
-    build,
-    dist
-    civitai_dl/webui/app.py
+exclude = .git,__pycache__,build,dist
+    civitai_dl/webui/
