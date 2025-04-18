@@ -13,7 +13,7 @@ import threading
 import time
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, List, Optional, Dict, Any, Union, TypeVar
+from typing import Callable, List, Optional, Dict, TypeVar
 
 import requests
 
@@ -41,7 +41,7 @@ class DownloadTask:
         chunk_size: int = 8192,
     ) -> None:
         """Initialize a download task.
-        
+
         Args:
             url: Download URL
             file_path: Full path where the file should be saved
@@ -106,7 +106,7 @@ class DownloadTask:
     @property
     def progress(self) -> float:
         """Get download progress as a ratio between 0.0 and 1.0.
-        
+
         Returns:
             Progress ratio from 0.0 to 1.0
         """
@@ -117,10 +117,10 @@ class DownloadTask:
     @progress.setter
     def progress(self, value: float) -> None:
         """Set download progress directly.
-        
+
         Updates the internal progress ratio and downloaded size
         if total size is known.
-        
+
         Args:
             value: Progress value from 0.0 to 1.0
         """
@@ -137,7 +137,7 @@ class DownloadTask:
     @property
     def file_path(self) -> str:
         """Get the full file path for this download.
-        
+
         Returns:
             Absolute file path
         """
@@ -146,9 +146,9 @@ class DownloadTask:
     @file_path.setter
     def file_path(self, value: str) -> None:
         """Set a new file path for this download.
-        
+
         Updates the internal file path and filename.
-        
+
         Args:
             value: New file path
         """
@@ -158,14 +158,14 @@ class DownloadTask:
 
     def _ensure_proper_extension(self, file_path: str, url: str) -> str:
         """Ensure the file path has a proper extension.
-        
+
         Examines the file path and URL to determine the appropriate file extension.
         If no extension is found, adds a default extension.
-        
+
         Args:
             file_path: Original file path to check and possibly modify
             url: Download URL that may contain extension information
-            
+
         Returns:
             File path with proper extension
         """
@@ -264,10 +264,8 @@ class DownloadTask:
                     existing_size = os.path.getsize(self.file_path)
                     if existing_size > 0:
                         # Check if file size matches total size if known
-                        if (
-                            self.total_size is not None
-                            and existing_size == self.total_size
-                        ):
+                        if (self.total_size is not None and
+                                existing_size == self.total_size):
                             logger.info(f"文件 {self.filename} 已存在且大小匹配，跳过下载。")
                             self.downloaded_size = existing_size
                             self.status = "completed"
@@ -405,10 +403,7 @@ class DownloadTask:
 
             except requests.HTTPError as http_err:
                 # 特殊处理416错误(Range Not Satisfiable)
-                if (
-                    http_err.response is not None
-                    and http_err.response.status_code == 416
-                ):
+                if (http_err.response is not None and http_err.response.status_code == 416):
                     logger.warning(f"Range请求失败(416错误)，服务器报告范围无效: {self.url}")
                     # This usually means the local file is already complete or larger than the remote file.
                     # Let's check the size again.
@@ -428,10 +423,8 @@ class DownloadTask:
                             head_response.headers.get("content-length", -1)
                         )
 
-                        if (
-                            remote_total_size != -1
-                            and existing_size >= remote_total_size
-                        ):
+                        if (remote_total_size != -1 and
+                                existing_size >= remote_total_size):  # 修复 W503
                             logger.info(
                                 f"本地文件 {self.filename} 大小 ({existing_size}) >= 远程大小 ({remote_total_size})，标记为完成。"
                             )
@@ -886,11 +879,9 @@ class DownloadEngine:
             base_filename = os.path.basename(path)
 
             # If filename looks like a directory or is empty, try query params or hash
-            if (
-                not base_filename
-                or "." not in base_filename
-                or base_filename.endswith("/")
-            ):
+            if (not base_filename or
+                    "." not in base_filename or
+                    base_filename.endswith("/")):
                 # Look for 'filename=' in query parameters
                 query_params = urllib.parse.parse_qs(parsed_url.query)
                 if "filename" in query_params and query_params["filename"][0]:

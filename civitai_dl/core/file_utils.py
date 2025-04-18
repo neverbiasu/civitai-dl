@@ -6,9 +6,8 @@ path management, and file conflict resolution.
 
 import os
 import re
-import logging
 import hashlib
-from typing import Optional, Tuple, Dict, Any, List, Union
+from typing import Optional, Tuple, Dict, Any
 from urllib.parse import unquote
 
 from civitai_dl.utils.logger import get_logger
@@ -44,7 +43,7 @@ def get_download_location(model_info: Dict[str, Any], version_info: Dict[str, An
         model_type = model_info.get("type")
         default_dir = get_download_dir(model_type)
         recent_dirs = get_config_value("recent_directories", [])
-        
+
         if recent_dirs:
             print("Recent download directories:")
             for i, directory in enumerate(recent_dirs):
@@ -52,7 +51,9 @@ def get_download_location(model_info: Dict[str, Any], version_info: Dict[str, An
 
         # Ask user for directory
         while True:
-            response = input(f"Enter download directory [default: {default_dir}], enter number for recent dirs, or press Enter for default: ")
+            response = input(
+                f"Enter download directory [default: {default_dir}], enter number for recent dirs,  \
+                or press Enter for default: ")
 
             # Empty input, use default
             if not response.strip():
@@ -102,14 +103,15 @@ def sanitize_filename(filename: str) -> str:
     """
     if not filename:
         return "unnamed_file"
-        
+
     # Replace invalid characters with underscores
     sanitized = re.sub(INVALID_CHARS, "_", filename)
 
     # Trim if filename exceeds maximum length (preserving extension)
     if len(sanitized) > MAX_FILENAME_LENGTH:
         name, ext = os.path.splitext(sanitized)
-        sanitized = name[:MAX_FILENAME_LENGTH - len(ext)] + ext
+        max_name_length = MAX_FILENAME_LENGTH - len(ext)
+        sanitized = name[:max_name_length] + ext
         logger.debug(f"Truncated filename to {MAX_FILENAME_LENGTH} characters")
 
     # Remove leading/trailing dots and spaces that cause issues
@@ -118,11 +120,11 @@ def sanitize_filename(filename: str) -> str:
     # Ensure filename is not empty after cleaning
     if not sanitized:
         sanitized = "unnamed_file"
-        
+
     # Log only if the filename was changed
     if sanitized != filename:
         logger.debug(f"Sanitized filename: '{filename}' → '{sanitized}'")
-    
+
     return sanitized
 
 

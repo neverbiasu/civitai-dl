@@ -6,7 +6,7 @@ Provides commands for browsing models, filter templates, and search history.
 import sys
 import json
 import difflib
-from typing import Dict, List, Any, Optional, Union, Tuple, cast
+from typing import Dict, List, Any, Optional
 
 import click
 from tabulate import tabulate
@@ -32,25 +32,24 @@ filter_manager = FilterManager()
 @click.group(help="Browse and search Civitai resources")
 def browse() -> None:
     """Command group for browsing Civitai resources."""
-    pass
 
 
 @browse.command("models")
 @click.option("--query", "-q", help="Search keyword")
 @click.option(
-    "--type", "-t", 
+    "--type", "-t",
     help="Model type",
     type=click.Choice([
         "Checkpoint", "LORA", "TextualInversion",
-        "Hypernetwork", "AestheticGradient", 
+        "Hypernetwork", "AestheticGradient",
         "Controlnet", "Poses"
     ])
 )
 @click.option(
-    "--sort", "-s", 
+    "--sort", "-s",
     help="Sort method",
     type=click.Choice([
-        "Highest Rated", "Most Downloaded", 
+        "Highest Rated", "Most Downloaded",
         "Newest", "Most Liked"
     ])
 )
@@ -60,9 +59,9 @@ def browse() -> None:
 @click.option("--nsfw/--no-nsfw", default=True, help="Include NSFW content")
 @click.option("--limit", "-l", type=int, default=20, help="Result limit")
 @click.option(
-    "--format", "-f", 
-    type=click.Choice(["table", "json"]), 
-    default="table", 
+    "--format", "-f",
+    type=click.Choice(["table", "json"]),
+    default="table",
     help="Output format"
 )
 @click.option("--output", "-o", help="Output file path")
@@ -74,26 +73,26 @@ def browse() -> None:
 @click.option("--max-downloads", type=int, help="Maximum downloads")
 @click.option("--interactive", "-i", is_flag=True, help="Interactive filter mode")
 def browse_models(
-    query: Optional[str], 
-    type: Optional[str], 
+    query: Optional[str],
+    type: Optional[str],
     sort: Optional[str],
-    creator: Optional[str], 
-    tag: Optional[str], 
+    creator: Optional[str],
+    tag: Optional[str],
     base_model: Optional[str],
-    nsfw: bool, 
-    limit: int, 
-    format: str, 
+    nsfw: bool,
+    limit: int,
+    format: str,
     output: Optional[str],
-    filter: Optional[str], 
+    filter: Optional[str],
     filter_template: Optional[str],
-    min_rating: Optional[float], 
+    min_rating: Optional[float],
     max_rating: Optional[float],
-    min_downloads: Optional[int], 
+    min_downloads: Optional[int],
     max_downloads: Optional[int],
     interactive: bool
 ) -> None:
     """Search and browse models on Civitai.
-    
+
     Searches for models using various filters and displays results in
     table or JSON format. Supports client-side filtering and sorting.
     """
@@ -140,7 +139,9 @@ def browse_models(
 
         # Warn if filters need client-side processing
         if filter_condition and len(api_params) <= 3:
-            click.echo("Warning: Some filter conditions cannot be converted to API parameters and will be applied client-side", err=True)
+            click.echo(
+                "Warning: Some filter conditions cannot be converted to API parameters and will be applied client-side",
+                err=True)
 
         # Execute search
         click.echo("Searching models, please wait...")
@@ -206,7 +207,12 @@ def browse_models(
 @click.option("--filter", "-f", help="模板筛选条件 (JSON格式)")
 @click.option("--remove", "-r", help="删除模板")
 @click.option("--show", "-s", help="显示模板内容")
-def browse_templates(list: bool, add: Optional[str], filter: Optional[str], remove: Optional[str], show: Optional[str]) -> None:
+def browse_templates(
+        list: bool,
+        add: Optional[str],
+        filter: Optional[str],
+        remove: Optional[str],
+        show: Optional[str]) -> None:
     """管理筛选模板"""
     # 如果没有指定任何操作，默认列出所有模板
     if not any([list, add, remove, show]):
@@ -278,20 +284,20 @@ def browse_history(limit: int, clear: bool) -> None:
 
 
 def determine_filter_condition(
-    filter_json: Optional[str], 
-    template_name: Optional[str], 
-    query: Optional[str], 
-    type: Optional[str], 
+    filter_json: Optional[str],
+    template_name: Optional[str],
+    query: Optional[str],
+    type: Optional[str],
     creator: Optional[str],
-    tag: Optional[str], 
-    base_model: Optional[str], 
-    min_rating: Optional[float], 
+    tag: Optional[str],
+    base_model: Optional[str],
+    min_rating: Optional[float],
     max_rating: Optional[float],
-    min_downloads: Optional[int], 
+    min_downloads: Optional[int],
     max_downloads: Optional[int]
 ) -> Dict[str, Any]:
     """Determine filter condition with priority: filter > template > other parameters.
-    
+
     Args:
         filter_json: JSON filter condition (highest priority)
         template_name: Name of a saved filter template
@@ -304,10 +310,10 @@ def determine_filter_condition(
         max_rating: Maximum rating threshold
         min_downloads: Minimum downloads threshold
         max_downloads: Maximum downloads threshold
-        
+
     Returns:
         Filter condition dictionary
-        
+
     Raises:
         SystemExit: If filter JSON parsing fails or template not found
     """
@@ -395,20 +401,20 @@ def display_search_results(models: List[Dict[str, Any]], format_type: str, outpu
 
 def interactive_filter_builder() -> Dict[str, Any]:
     """Interactive filter condition builder.
-    
+
     Provides an interactive interface for building complex filter conditions.
-    
+
     Returns:
         Dict containing the built filter condition
     """
     conditions = []
     available_fields = [
-        "name", "type", "creator.username", "tags", 
-        "modelVersions.baseModel", "stats.rating", 
+        "name", "type", "creator.username", "tags",
+        "modelVersions.baseModel", "stats.rating",
         "stats.downloadCount", "stats.favoriteCount",
         "publishedAt", "updatedAt"
     ]
-    
+
     available_operators = {
         "=": "eq",
         "==": "eq",
@@ -423,16 +429,16 @@ def interactive_filter_builder() -> Dict[str, Any]:
         "regex": "regex",
         "in": "in"
     }
-    
+
     # Print colored title and instructions
     click.secho("=== Interactive Filter Builder ===", fg="green", bold=True)
     click.echo("Enter filter conditions one by one. Submit empty line when finished.")
-    
+
     # Display available fields
     click.secho("Available fields:", fg="cyan")
     for field in available_fields:
         click.echo(f"  - {field}")
-    
+
     # Display available operators
     click.secho("Available operators:", fg="cyan")
     click.echo("  - = (equals), != (not equals)")
@@ -442,18 +448,18 @@ def interactive_filter_builder() -> Dict[str, Any]:
     click.echo("  - startswith (string starts with)")
     click.echo("  - endswith (string ends with)")
     click.echo("  - regex (regular expression match)")
-    
+
     click.secho("Examples:", fg="yellow")
     click.echo("  - name contains lora")
     click.echo("  - stats.rating > 4.5")
     click.echo("  - type = LORA")
     click.echo("Press Ctrl+C to cancel")
-    
+
     try:
         while True:
             # Colored prompt
-            condition_str = click.prompt(click.style("Filter condition", fg="bright_blue"), 
-                                        default="", show_default=False)
+            condition_str = click.prompt(click.style("Filter condition", fg="bright_blue"),
+                                         default="", show_default=False)
             if not condition_str.strip():
                 break
 
@@ -472,10 +478,10 @@ def interactive_filter_builder() -> Dict[str, Any]:
                 matches = difflib.get_close_matches(field, available_fields, n=1)
                 if matches:
                     suggestion = f", did you mean '{matches[0]}'?"
-                
+
                 if click.confirm(click.style(
-                    f"Warning: '{field}' is not a common field{suggestion} Continue anyway?", 
-                    fg="yellow"), default=True):
+                    f"Warning: '{field}' is not a common field{suggestion} Continue anyway?",
+                        fg="yellow"), default=True):
                     pass
                 else:
                     continue
@@ -505,9 +511,9 @@ def interactive_filter_builder() -> Dict[str, Any]:
             })
 
             # Show the added condition with color
-            click.secho(f"✓ Added condition: ", fg="green", nl=False)
+            click.secho("✓ Added condition: ", fg="green", nl=False)
             click.echo(f"{field} {op_str} {value}")
-            
+
             # Show total condition count
             click.secho(f"Total conditions: {len(conditions)}", fg="cyan")
 
@@ -525,10 +531,10 @@ def interactive_filter_builder() -> Dict[str, Any]:
         click.secho("Select logical relationship between conditions:", fg="bright_blue")
         click.echo("AND - All conditions must be met")
         click.echo("OR  - Any condition can be met")
-        logic = click.prompt("Logic", 
-                          type=click.Choice(["AND", "OR"], case_sensitive=False), 
-                          default="AND")
-        
+        logic = click.prompt("Logic",
+                             type=click.Choice(["AND", "OR"], case_sensitive=False),
+                             default="AND")
+
         # Convert to lowercase for API compatibility
         logic = logic.lower()
         click.secho(f"Selected {logic.upper()} logic", fg="green")
@@ -550,14 +556,14 @@ def interactive_filter_builder() -> Dict[str, Any]:
 @click.option("--username", help="创作者用户名")
 @click.option("--tag", help="标签")
 def search_models(
-    query: Optional[str], 
-    limit: int, 
-    page: int, 
-    type: Optional[str], 
-    sort: Optional[str], 
-    period: Optional[str], 
-    nsfw: Optional[bool], 
-    username: Optional[str], 
+    query: Optional[str],
+    limit: int,
+    page: int,
+    type: Optional[str],
+    sort: Optional[str],
+    period: Optional[str],
+    nsfw: Optional[bool],
+    username: Optional[str],
     tag: Optional[str]
 ) -> None:
     """搜索Civitai上的模型"""
@@ -612,8 +618,11 @@ def search_models(
                 )
             click.echo("-" * 110)
             click.echo(
-                f"总共找到 {metadata.get('totalItems', 0)} 个模型, "
-                f"当前页: {metadata.get('currentPage', 1)} / {metadata.get('totalPages', 1)}"
+                "总共找到 {} 个模型, 当前页: {} / {}".format(
+                    metadata.get('totalItems', 0),
+                    metadata.get('currentPage', 1),
+                    metadata.get('totalPages', 1)
+                )
             )
         else:
             click.echo("未找到符合条件的模型。")

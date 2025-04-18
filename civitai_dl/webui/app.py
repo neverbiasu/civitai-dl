@@ -4,7 +4,7 @@ import json
 import os
 import time
 from threading import Thread
-from typing import Dict, Any, List, Optional, Tuple, Union, Callable
+from typing import Dict, Any, List, Optional, Tuple
 
 import gradio as gr
 
@@ -20,12 +20,13 @@ from civitai_dl.webui.components.image_browser import ImageDownloader
 # 设置日志记录器
 logger = get_logger(__name__)
 
+
 def create_app() -> gr.Blocks:
     """Create and configure the WebUI application.
-    
+
     Creates the Gradio interface with tabs for model downloading, searching,
     image browsing, download queue management, and application settings.
-    
+
     Returns:
         Configured Gradio Blocks application
     """
@@ -148,10 +149,10 @@ def create_app() -> gr.Blocks:
                 # Set up filter callbacks
                 def on_preview_filter(filter_condition: Dict[str, Any]) -> str:
                     """Preview filter results count.
-                    
+
                     Args:
                         filter_condition: Filter condition to preview
-                        
+
                     Returns:
                         String describing matching models count
                     """
@@ -166,10 +167,10 @@ def create_app() -> gr.Blocks:
 
                 def on_apply_filter(filter_condition: Dict[str, Any]) -> List[List[Any]]:
                     """Apply filter and return matching models.
-                    
+
                     Args:
                         filter_condition: Filter condition to apply
-                        
+
                     Returns:
                         List of model data rows for display
                     """
@@ -209,10 +210,10 @@ def create_app() -> gr.Blocks:
 
                 def update_results(data: List[List[Any]]) -> List[List[Any]]:
                     """Update results display.
-                    
+
                     Args:
                         data: New table data
-                        
+
                     Returns:
                         Updated table data
                     """
@@ -221,13 +222,13 @@ def create_app() -> gr.Blocks:
                 # Basic search button callback
                 def on_search(query: str, types: List[str], sort: str, nsfw_enabled: bool) -> List[List[Any]]:
                     """Search models with basic parameters.
-                    
+
                     Args:
                         query: Search query string
                         types: Model type filters
                         sort: Sort method
                         nsfw_enabled: Whether to include NSFW content
-                        
+
                     Returns:
                         Search results as table data
                     """
@@ -408,17 +409,17 @@ def create_app() -> gr.Blocks:
             )
 
         # == Callback functions ==
-        def on_download(model_id: int, version_id: Optional[int], output_dir: str, 
-                       with_images: bool, image_limit: int) -> Tuple[str, float]:
+        def on_download(model_id: int, version_id: Optional[int], output_dir: str,
+                        with_images: bool, image_limit: int) -> Tuple[str, float]:
             """Handle model download request.
-            
+
             Args:
                 model_id: Civitai model ID
                 version_id: Specific version ID (optional)
                 output_dir: Directory to save files
                 with_images: Whether to download example images
                 image_limit: Maximum number of images to download
-                
+
             Returns:
                 Status message and initial progress value
             """
@@ -514,15 +515,15 @@ def create_app() -> gr.Blocks:
                 return f"下载出错: {str(e)}", 0
 
         def download_model_images(
-            api: CivitaiAPI, 
-            downloader: DownloadEngine, 
-            model_id: int, 
-            version_id: int, 
-            limit: int, 
+            api: CivitaiAPI,
+            downloader: DownloadEngine,
+            model_id: int,
+            version_id: int,
+            limit: int,
             output_dir: str
         ) -> None:
             """Background task to download model example images.
-            
+
             Args:
                 api: API client
                 downloader: Download engine
@@ -619,17 +620,17 @@ def create_app() -> gr.Blocks:
             except Exception as e:
                 print(f"下载示例图像时出错: {e}")
 
-        def on_image_search(model_id: int, version_id: Optional[int], 
-                           nsfw_filter: str, gallery: bool, limit: int) -> Tuple[List[str], Dict[str, Any]]:
+        def on_image_search(model_id: int, version_id: Optional[int],
+                            nsfw_filter: str, gallery: bool, limit: int) -> Tuple[List[str], Dict[str, Any]]:
             """Handle image search request.
-            
+
             Args:
                 model_id: Model ID
                 version_id: Version ID (optional)
                 nsfw_filter: NSFW filter setting
                 gallery: Whether to include community gallery
                 limit: Maximum number of images
-                
+
             Returns:
                 List of image URLs and metadata object
             """
@@ -667,11 +668,11 @@ def create_app() -> gr.Blocks:
 
         def on_image_selected(evt: gr.SelectData, index: Optional[int] = None) -> Dict[str, Any]:
             """Handle image selection event.
-            
+
             Args:
                 evt: Selection event data
                 index: Optional explicitly provided index
-                
+
             Returns:
                 Image metadata
             """
@@ -690,16 +691,16 @@ def create_app() -> gr.Blocks:
                 return {"error": f"获取图像元数据失败: {str(e)}"}
 
         def on_download_images(model_id: int, version_id: Optional[int],
-                              nsfw_filter: str, gallery: bool, limit: int) -> Dict[str, Any]:
+                               nsfw_filter: str, gallery: bool, limit: int) -> Dict[str, Any]:
             """Handle image download request.
-            
+
             Args:
                 model_id: Model ID
                 version_id: Version ID (optional)
                 nsfw_filter: NSFW filter setting
                 gallery: Whether to include community gallery
                 limit: Maximum number of images
-                
+
             Returns:
                 Download result status
             """
@@ -735,7 +736,7 @@ def create_app() -> gr.Blocks:
             verify_ssl: bool,
         ) -> str:
             """Save application settings.
-            
+
             Args:
                 api_key: Civitai API key
                 proxy: Proxy server address
@@ -748,7 +749,7 @@ def create_app() -> gr.Blocks:
                 timeout: Request timeout
                 max_retries: Maximum retry attempts
                 verify_ssl: Whether to verify SSL certificates
-                
+
             Returns:
                 Status message
             """

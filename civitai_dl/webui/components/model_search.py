@@ -4,8 +4,7 @@ This module provides functionality for searching and browsing models on Civitai,
 with support for various filtering and sorting options.
 """
 
-from typing import Dict, List, Any, Optional, Tuple
-import logging
+from typing import Dict, List, Any, Optional
 
 from civitai_dl.api.client import CivitaiAPI
 from civitai_dl.core.downloader import DownloadEngine
@@ -17,14 +16,14 @@ logger = get_logger(__name__)
 
 class ModelSearcher:
     """Model search component that provides model search and browsing functionality.
-    
+
     This component interacts with the Civitai API to search for models using various
     criteria and filters, and manages search results for display and download.
     """
 
     def __init__(self, api: CivitaiAPI, downloader: DownloadEngine):
         """Initialize the model searcher.
-        
+
         Args:
             api: Configured Civitai API client
             downloader: Download engine for handling downloads
@@ -75,7 +74,7 @@ class ModelSearcher:
                 "page": page,
                 "limit": page_size,
             }
-            
+
             # Add optional parameters if provided
             if tags:
                 params["tag"] = tags[0] if len(tags) == 1 else None  # API only supports one tag
@@ -83,25 +82,25 @@ class ModelSearcher:
                 params["username"] = creator
             if base_model:
                 params["baseModel"] = base_model
-                
+
             # Add any additional parameters
             if additional_params:
                 params.update(additional_params)
-                
+
             # Remove None values
             params = {k: v for k, v in params.items() if v is not None}
-            
+
             # Save search parameters for potential reuse
             self.last_search_params = params.copy()
-            
+
             # Execute search via API
             logger.info(f"Searching models with params: {params}")
             response = self.api.get_models(params)
-            
+
             # Process and format results
             models = response.get("items", [])
             formatted_results = []
-            
+
             for model in models:
                 # Extract key information
                 model_id = model.get("id")
@@ -110,15 +109,15 @@ class ModelSearcher:
                 creator = model.get("creator", {}).get("username", "Unknown")
                 download_count = model.get("stats", {}).get("downloadCount", 0)
                 rating = model.get("stats", {}).get("rating", 0)
-                
+
                 # Format for display
                 formatted_results.append([
                     model_id, name, model_type, creator, download_count, rating
                 ])
-            
+
             # Store results for later use
             self.current_results = formatted_results
-            
+
             # Return with metadata
             metadata = response.get("metadata", {})
             return {
@@ -140,10 +139,10 @@ class ModelSearcher:
 
     def get_model_details(self, model_id: int) -> Dict[str, Any]:
         """Get detailed information about a specific model.
-        
+
         Args:
             model_id: Civitai model ID
-            
+
         Returns:
             Dictionary containing detailed model information
         """
@@ -172,53 +171,53 @@ class ModelSearcher:
                 for i in selected_indices
                 if 0 <= i < len(self.current_results)
             ]
-            
+
             if not selected_models:
                 return "No valid models selected"
-                
+
             # Extract model IDs
             model_ids = [model[0] for model in selected_models]
-            
+
             # Queue downloads
             download_tasks = []
-            
+
             for model_id in model_ids:
                 try:
                     # Get model details
                     model_details = self.get_model_details(model_id)
-                    
+
                     if "error" in model_details:
                         logger.warning(f"Skipping model {model_id}: {model_details['error']}")
                         continue
-                    
+
                     # Get latest version
                     versions = model_details.get("modelVersions", [])
-                    
+
                     if not versions:
                         logger.warning(f"Model {model_id} has no versions available")
                         continue
-                        
+
                     latest_version = versions[0]  # First version is the latest
                     version_id = latest_version.get("id")
-                    
+
                     # Get download URL
                     download_url = self.api.get_download_url(version_id)
-                    
+
                     if not download_url:
                         logger.warning(f"No download URL available for model {model_id}, version {version_id}")
                         continue
-                    
+
                     # Start download
                     task = self.downloader.download(
                         url=download_url,
                         # Additional parameters can be added here
                     )
-                    
+
                     download_tasks.append(task)
-                    
+
                 except Exception as e:
                     logger.error(f"Error setting up download for model {model_id}: {str(e)}")
-            
+
             # Summarize operation
             if download_tasks:
                 return f"Started downloading {len(download_tasks)} models: {', '.join(map(str, model_ids))}"

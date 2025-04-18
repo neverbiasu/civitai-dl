@@ -44,12 +44,12 @@ def cli(verbose: int = 0, quiet: bool = False) -> None:
 
 def import_commands() -> None:
     """Dynamically import all command modules from the commands directory.
-    
+
     Searches the commands directory for Python modules and imports them,
     registering any commands with matching names to the CLI.
     """
     commands_dir = os.path.join(os.path.dirname(__file__), "commands")
-    
+
     try:
         for filename in os.listdir(commands_dir):
             if filename.endswith(".py") and not filename.startswith("__"):

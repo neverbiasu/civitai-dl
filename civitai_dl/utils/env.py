@@ -6,7 +6,6 @@ including loading from .env files for application configuration.
 
 import os
 import re
-import logging
 from typing import Dict, Optional
 
 from civitai_dl.utils.logger import get_logger
@@ -16,15 +15,15 @@ logger = get_logger(__name__)
 
 def load_env_file(env_file: Optional[str] = None) -> Dict[str, str]:
     """Load environment variables from a .env file.
-    
+
     Args:
         env_file: Path to the .env file, if None will look in project root
-        
+
     Returns:
         Dictionary of loaded environment variables
     """
     loaded_vars = {}
-    
+
     if env_file is None:
         # Try to find project root directory
         current_dir = os.path.dirname(
@@ -56,17 +55,17 @@ def load_env_file(env_file: Optional[str] = None) -> Dict[str, str]:
             logger.error(f"Error loading .env file: {str(e)}")
     else:
         logger.debug(f"No .env file found at {env_file}")
-    
+
     return loaded_vars
 
 
 def get_env(key: str, default: Optional[str] = None) -> Optional[str]:
     """Get environment variable with fallback to default.
-    
+
     Args:
         key: Environment variable name
         default: Default value if variable is not set
-        
+
     Returns:
         Environment variable value or default
     """
@@ -75,7 +74,7 @@ def get_env(key: str, default: Optional[str] = None) -> Optional[str]:
 
 def set_env(key: str, value: str) -> None:
     """Set environment variable.
-    
+
     Args:
         key: Environment variable name
         value: Value to set

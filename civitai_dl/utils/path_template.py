@@ -88,7 +88,7 @@ class SafeDict(dict):
 
     def __init__(self, data: Dict[str, Any], default_value: str):
         """Initialize safe dictionary with data and default value.
-        
+
         Args:
             data: Dictionary of key-value pairs
             default_value: Value to return for missing keys
@@ -98,10 +98,10 @@ class SafeDict(dict):
 
     def __missing__(self, key: str) -> str:
         """Handle missing keys by returning the default value.
-        
+
         Args:
             key: The missing dictionary key
-            
+
         Returns:
             Default value for missing keys
         """

@@ -6,7 +6,7 @@ Provides functionality for loading, saving, and accessing application configurat
 import os
 import json
 import logging
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ class ConfigManager:
 
     def __init__(self, config_path: str = DEFAULT_CONFIG_PATH) -> None:
         """Initialize configuration manager.
-        
+
         Args:
             config_path: Path to configuration file
         """
@@ -30,7 +30,7 @@ class ConfigManager:
 
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from file or use defaults.
-        
+
         Returns:
             Configuration dictionary
         """
@@ -56,7 +56,7 @@ class ConfigManager:
 
     def _get_default_config(self) -> Dict[str, Any]:
         """Get default configuration settings.
-        
+
         Returns:
             Default configuration dictionary
         """
@@ -87,10 +87,10 @@ class ConfigManager:
 
     def save_config(self) -> bool:
         """Save configuration to file.
-        
+
         Ensures the directory exists before writing the configuration file
         and handles various error conditions gracefully.
-        
+
         Returns:
             True if save was successful, False otherwise
         """
@@ -103,10 +103,10 @@ class ConfigManager:
             # Write config with proper formatting
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, indent=4, ensure_ascii=False)
-            
+
             logger.debug(f"Configuration saved to {self.config_path}")
             return True
-            
+
         except OSError as e:
             logger.error(f"Failed to create directory for config: {str(e)}")
             return False
