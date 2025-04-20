@@ -60,6 +60,13 @@ class APIError(Exception):
         return f"API Error: {self.message}"
 
 
+class ResourceNotFoundError(APIError):
+    """Exception raised when a requested resource is not found (404 error)."""
+
+    def __init__(self, message: str = "Requested resource not found", status_code: int = 404, response=None):
+        super().__init__(message, status_code, response)
+
+
 class CivitaiAPI:
     """Client for interacting with the Civitai API.
 
