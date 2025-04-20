@@ -139,7 +139,7 @@ class FilterBuilder:
         clear_btn = None
         preview_btn = None
         preview_output_element = None  # Renamed to avoid conflict
-        
+
         # Extract components from accordion
         try:
             for component in filter_accordion.children:
@@ -155,7 +155,7 @@ class FilterBuilder:
                                     preview_btn = elem
                                 elif isinstance(elem, gr.Textbox) and elem.label == "Preview":
                                     preview_output_element = elem
-                                
+
                                 # 其他组件的定位代码不需要赋值给变量，注释掉以避免未使用变量警告
                                 # 或者可以将不再需要的定位代码完全删除
         except Exception as e:

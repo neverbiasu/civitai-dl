@@ -306,21 +306,6 @@ def create_app() -> gr.Blocks:
                     download_images_btn = gr.Button("下载所有图像")
                     image_metadata = gr.JSON(label="图像元数据")
 
-            # ===== Download Queue Tab =====
-            with gr.Tab("下载队列"):
-                with gr.Row():
-                    queue_table = gr.Dataframe(
-                        headers=["任务ID", "类型", "名称", "状态", "进度", "速度", "剩余时间"],
-                        label="当前下载队列",
-                        interactive=False,
-                    )
-
-                with gr.Row():
-                    gr.Button("全部暂停")
-                    gr.Button("全部恢复")
-                    gr.Button("全部取消")
-                    gr.Button("刷新队列")
-
             # ===== Settings Tab =====
             with gr.Tab("设置"):
                 with gr.Accordion("基本设置", open=True):

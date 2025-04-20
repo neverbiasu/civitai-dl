@@ -23,23 +23,18 @@ def download():
 
 
 @download.command("model")
-@click.argument("model_id", type=int)
-@click.option("--version", "-v", type=int, help="版本ID")
-@click.option("--output", "-o", help="输出路径")
-@click.option("--format", "-f", help="首选文件格式")
-@click.option("--with-images", is_flag=True, help="同时下载示例图像")
-@click.option("--image-limit", type=int, default=5, help="下载的图像数量限制")
-def download_model(
-    model_id: int,
-    version: Optional[int],
-    output: Optional[str],
-    format: Optional[str],
-    with_images: bool,
-    image_limit: int,
-):
-    """下载指定ID的模型"""
+@click.argument("model_id")
+@click.option("--version", "-v", help="模型版本ID，不指定则下载最新版本")
+@click.option("--output", "-o", help="输出目录")
+@click.option("--with-images", is_flag=True, help="同时下载模型图像")
+def download_model(model_id, version=None, output=None, with_images=False):
+    """下载指定ID的模型
+
+    MODEL_ID 是Civitai模型的唯一标识符
+    """
     try:
         config = get_config()
+        output_dir = output or config.get("output_dir", "./downloads")
 
         # 创建API客户端
         api = CivitaiAPI(
@@ -50,117 +45,96 @@ def download_model(
             max_retries=config.get("max_retries", 3),
         )
 
+        # 获取模型信息
+        click.echo(f"获取模型 {model_id} 信息...")
+        model_info = api.get_model(model_id)
+        if not model_info:
+            click.secho(f"错误: 找不到模型 {model_id} 或无法获取模型信息", fg="red")
+            return
+
+        # 确定版本
+        versions = model_info.get("modelVersions", [])
+        if not versions:
+            click.secho(f"错误: 模型 {model_id} 没有可用版本", fg="red")
+            return
+
+        target_version = None
+        if version:
+            for v in versions:
+                if str(v["id"]) == str(version):
+                    target_version = v
+                    break
+            if not target_version:
+                click.secho(f"错误: 找不到指定的版本ID: {version}", fg="red")
+                return
+        else:
+            target_version = versions[0]
+            click.echo(f"使用最新版本: {target_version.get('name')} (ID: {target_version.get('id')})")
+
+        # 获取文件
+        files = target_version.get("files", [])
+        if not files:
+            click.secho(f"错误: 版本 {target_version.get('id')} 没有可用文件", fg="red")
+            return
+
+        target_file = files[0]  # 使用第一个文件
+
         # 初始化下载引擎
         downloader = DownloadEngine(
-            output_dir=output or config.get("output_dir", "./downloads"),
+            output_dir=output_dir,
             concurrent_downloads=1,
         )
 
-        # 获取模型信息
-        click.echo(f"正在获取模型信息 (ID: {model_id})...")
-        model_info = api.get_model(model_id)
+        # 构建文件路径
+        file_path = os.path.join(output_dir, target_file["name"])
 
-        if not model_info:
-            click.secho(f"错误: 未找到ID为{model_id}的模型", fg="red")
-            sys.exit(1)
+        # 显示下载信息
+        model_name = model_info.get("name", f"模型 {model_id}")
+        click.echo(f"开始下载 {model_name}, 版本: {target_version.get('name')}")
+        click.echo(f"文件: {target_file['name']} ({format_size(target_file.get('sizeKB', 0) * 1024)})")
 
-        click.echo(f"模型名称: {model_info['name']}")
-
-        # 获取版本信息
-        versions = model_info["modelVersions"]
-
-        if not versions:
-            click.secho("错误: 该模型没有可用版本", fg="red")
-            sys.exit(1)
-
-        target_version = None
-
-        if version:
-            # 查找指定版本
-            for v in versions:
-                if v["id"] == version:
-                    target_version = v
-                    break
-
-            if not target_version:
-                click.secho(f"错误: 未找到ID为{version}的版本", fg="red")
-                sys.exit(1)
-        else:
-            # 使用最新版本
-            target_version = versions[0]
-
-        click.echo(f"版本: {target_version['name']}")
-
-        # 获取下载文件
-        files = target_version["files"]
-
-        if not files:
-            click.secho("错误: 该版本没有可用文件", fg="red")
-            sys.exit(1)
-
-        # 如果指定了格式，尝试找到匹配的文件
-        target_file = None
-
-        if format:
-            for file in files:
-                if file["name"].lower().endswith(format.lower()):
-                    target_file = file
-                    break
-
-            if not target_file:
-                click.secho(f"警告: 未找到格式为{format}的文件，将下载默认文件", fg="yellow")
-                target_file = files[0]
-        else:
-            # 使用第一个文件（通常是主模型文件）
-            target_file = files[0]
-
-        # 开始下载
-        file_name = target_file["name"]
-        file_size = target_file.get("sizeKB", 0) * 1024
-        download_url = target_file["downloadUrl"]
-
-        click.echo(f"准备下载: {file_name} ({format_size(file_size)})")
-
-        # 设置进度回调
+        # 定义进度回调
         def progress_callback(downloaded, total):
-            percent = (downloaded / total) * 100 if total else 0
-            click.echo(
-                f"\r下载进度: {percent:.1f}% ({format_size(downloaded)}/{format_size(total)})",
-                nl=False,
-            )
+            if total:
+                progress = (downloaded / total) * 100
+                click.echo(f"\r下载进度: {progress:.1f}% [{format_size(downloaded)}/{format_size(total)}]", nl=False)
+            else:
+                click.echo(f"\r已下载: {format_size(downloaded)}", nl=False)
 
-        # 下载文件
-        save_path = os.path.join(downloader.output_dir, file_name)
-        click.echo(f"下载到: {save_path}")
-
+        # 执行下载
         download_task = downloader.download(
-            url=download_url, file_path=save_path, progress_callback=progress_callback
+            url=target_file["downloadUrl"],
+            output_path=output_dir,
+            filename=target_file["name"],
+            progress_callback=progress_callback
         )
 
-        try:
-            # 等待下载完成
-            download_task.wait()
+        # 等待下载完成
+        download_task.wait()
+
+        if download_task.status == "completed":
             click.echo("\n下载完成!")
+            click.echo(f"文件保存至: {download_task.file_path}")
 
-            # 如果需要下载图像
+            # 下载关联图像
             if with_images:
-                click.echo("开始下载模型示例图像...")
+                click.echo("\n开始下载模型示例图像...")
                 download_images(
-                    api, downloader, model_id, target_version["id"], image_limit, output
+                    api,
+                    downloader,
+                    model_id,
+                    target_version.get("id"),
+                    limit=5,  # 默认下载5张示例图像
+                    output_dir=output_dir,
+                    include_nsfw=False,
+                    gallery=False
                 )
-
-            # 确保完全退出
-            return
-
-        except KeyboardInterrupt:
-            click.echo("\n下载已取消")
-            download_task.cancel()
-            sys.exit(0)
+        else:
+            click.secho(f"\n下载失败: {download_task.error}", fg="red")
 
     except Exception as e:
-        click.secho(f"下载过程中出错: {str(e)}", fg="red")
-        logger.exception("下载失败")
-        sys.exit(1)
+        click.secho(f"\n下载失败: {str(e)}", fg="red")
+        logger.exception("模型下载失败")
 
 
 @download.command("images")
