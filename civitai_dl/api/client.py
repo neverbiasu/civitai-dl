@@ -230,36 +230,46 @@ class CivitaiAPI:
                 return self._make_request(method, endpoint, params, data, json_data, headers, retry_count + 1)
             raise APIError(f"Request failed: {str(e)}")
 
-    def get_models(self, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Search for models on Civitai.
+    def get_models(self, **params):
+        """获取模型列表
 
         Args:
-            params: Search parameters
-                - query: Search query string
-                - tag: Tag to filter by
-                - username: Creator username
-                - types: Model types (as a list or single value)
-                - sort: Sort method (Highest Rated, Most Downloaded, etc.)
-                - period: Time period (Day, Week, Month, etc.)
-                - page: Page number
-                - limit: Results per page
-                - nsfw: Include NSFW content (true/false as string)
-                - baseModel: Base model filter
+            **params: API查询参数，例如:
+                limit: 结果数量限制 (int)
+                page: 页码 (int)
+                query: 搜索查询 (str)
+                types: 模型类型列表 (如 ["Checkpoint", "LORA"])
+                sort: 排序方式
+                period: 时间范围
+                nsfw: 是否包含NSFW内容
+                username: 创作者用户名
+                tag: 标签
 
         Returns:
-            API response with model list and metadata
+            API响应，包含模型列表和元数据
         """
-        # Handle list parameters correctly
-        if params and "types" in params and isinstance(params["types"], list):
-            types = params["types"]
-            if len(types) == 1:
-                params["types"] = types[0]
-            elif len(types) > 1:
-                # API doesn't directly support multiple types, but we can prepare
-                # a comma-separated list or other format if needed in the future
-                params["types"] = types[0]  # For now, just use the first type
-
-        return self._make_request("GET", "models", params=params)
+        # 类型转换与清理
+        api_params = {}
+        for k, v in params.items():
+            if v in (None, "", [], {}):
+                continue
+            if k == "limit":
+                try:
+                    api_params[k] = int(v)
+                except Exception:
+                    continue
+            elif k == "types":
+                # 支持字符串、列表、元组
+                if isinstance(v, str):
+                    api_params[k] = [v]
+                elif isinstance(v, (list, tuple)):
+                    api_params[k] = list(v)
+                else:
+                    continue
+            else:
+                api_params[k] = v
+        logger.debug(f"获取模型列表，最终API参数: {api_params}")
+        return self._make_request("GET", "models", params=api_params)
 
     def get_model(self, model_id: int) -> Dict[str, Any]:
         """Get details for a specific model.
@@ -295,7 +305,7 @@ class CivitaiAPI:
         Returns:
             Creator profile details
         """
-        return self._make_request("GET", f"creators/{creator_id}")
+        ret
 
     def search_tags(self, query: str) -> List[Dict[str, Any]]:
         """Search for tags by name.

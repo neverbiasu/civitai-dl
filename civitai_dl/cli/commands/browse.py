@@ -11,13 +11,11 @@ from typing import Dict, List, Any, Optional
 import click
 from tabulate import tabulate
 
-from ...api.client import CivitaiAPI, APIError
-from ...core.filter import (
-    FilterParser, FilterManager, apply_filter,
-    sort_results
-)
-from ...utils.config import get_config
-from ...utils.logger import get_logger
+from civitai_dl.api import CivitaiAPI
+from civitai_dl.api import APIError
+from civitai_dl.core.filter import FilterBuilder, FilterManager, parse_filter_condition
+from civitai_dl.utils.config import get_config, CONFIG_DIR
+from civitai_dl.utils.logger import get_logger
 
 # Configure logging
 logger = get_logger(__name__)
@@ -35,170 +33,162 @@ def browse() -> None:
 
 
 @browse.command("models")
-@click.option("--query", "-q", help="Search keyword")
-@click.option(
-    "--type", "-t",
-    help="Model type",
-    type=click.Choice([
-        "Checkpoint", "LORA", "TextualInversion",
-        "Hypernetwork", "AestheticGradient",
-        "Controlnet", "Poses"
-    ])
-)
-@click.option(
-    "--sort", "-s",
-    help="Sort method",
-    type=click.Choice([
-        "Highest Rated", "Most Downloaded",
-        "Newest", "Most Liked"
-    ])
-)
-@click.option("--creator", "-c", help="Creator name")
-@click.option("--tag", help="Tag")
-@click.option("--base-model", help="Base model")
-@click.option("--nsfw/--no-nsfw", default=True, help="Include NSFW content")
-@click.option("--limit", "-l", type=int, default=20, help="Result limit")
-@click.option(
-    "--format", "-f",
-    type=click.Choice(["table", "json"]),
-    default="table",
-    help="Output format"
-)
-@click.option("--output", "-o", help="Output file path")
-@click.option("--filter", help="Complex filter condition (JSON format)")
-@click.option("--filter-template", help="Use saved filter template")
-@click.option("--min-rating", type=float, help="Minimum rating")
-@click.option("--max-rating", type=float, help="Maximum rating")
-@click.option("--min-downloads", type=int, help="Minimum downloads")
-@click.option("--max-downloads", type=int, help="Maximum downloads")
-@click.option("--interactive", "-i", is_flag=True, help="Interactive filter mode")
-def browse_models(
-    query: Optional[str],
-    type: Optional[str],
-    sort: Optional[str],
-    creator: Optional[str],
-    tag: Optional[str],
-    base_model: Optional[str],
-    nsfw: bool,
-    limit: int,
-    format: str,
-    output: Optional[str],
-    filter: Optional[str],
-    filter_template: Optional[str],
-    min_rating: Optional[float],
-    max_rating: Optional[float],
-    min_downloads: Optional[int],
-    max_downloads: Optional[int],
-    interactive: bool
-) -> None:
-    """Search and browse models on Civitai.
-
-    Searches for models using various filters and displays results in
-    table or JSON format. Supports client-side filtering and sorting.
-    """
-    # Display current search parameters
-    model_type_str = type if type else "All"
-    click.echo(f"Searching models: {query or 'no keyword'} (Type: {model_type_str}, Limit: {limit})")
-
+@click.option("--query", "-q", help="搜索关键词")
+@click.option("--types", "-t", multiple=True, help="模型类型 (Checkpoint, LORA, TextualInversion等，可多选)")
+@click.option("--tag", help="模型标签")
+@click.option("--sort", help="排序方式 (最新, 下载数, 点赞数等)")
+@click.option("--limit", "-l", type=int, default=20, help="结果数量限制")
+@click.option("--nsfw", is_flag=True, help="包含NSFW内容")
+@click.option("--format", "-f", type=click.Choice(["table", "json"]), default="table", help="输出格式")
+@click.option("--creator", "-c", help="创作者用户名")
+@click.option("--base-model", "-b", help="基础模型")
+@click.option("--filter", help="高级筛选条件 (JSON格式)")
+@click.option("--template", help="使用筛选模板")
+def browse_models(query, types, tag, sort, limit, nsfw, format, creator, base_model, filter, template):
+    """浏览和搜索模型"""
     try:
-        # Build filter condition
-        if interactive:
-            filter_condition = interactive_filter_builder()
-            if not filter_condition:
-                click.echo("Search canceled.")
-                return
-        else:
-            # Determine filter condition based on parameters
-            filter_condition = determine_filter_condition(
-                filter, filter_template, query, type, creator, tag, base_model,
-                min_rating, max_rating, min_downloads, max_downloads
-            )
-
-        # Convert filter condition to API parameters
-        api_params = {}
-        if filter_condition:
-            api_params = FilterParser.to_api_params(filter_condition)
-            logger.debug(f"Filter condition converted to API params: {api_params}")
-
-        # Add basic parameters to API request
-        api_params["limit"] = limit
-        if query and "query" not in api_params:
-            api_params["query"] = query
-        if type and "types" not in api_params:
-            api_params["types"] = type
-        if sort:
-            api_params["sort"] = sort
-        if not nsfw:
-            api_params["nsfw"] = "false"
-        if creator and "username" not in api_params:
-            api_params["username"] = creator
-        if tag and "tag" not in api_params:
-            api_params["tag"] = tag
-        if base_model:
-            api_params["baseModel"] = base_model
-
-        # Warn if filters need client-side processing
-        if filter_condition and len(api_params) <= 3:
-            click.echo(
-                "Warning: Some filter conditions cannot be converted to API parameters and will be applied client-side",
-                err=True)
-
-        # Execute search
-        click.echo("Searching models, please wait...")
-        response = api.get_models(api_params)
-        models = response.get("items", [])
-
-        if not models:
-            click.echo("No matching models found")
-            return
-
-        # Apply client-side filtering if needed
-        if filter_condition:
-            original_count = len(models)
-            models = apply_filter(models, filter_condition)
-            if len(models) < original_count:
-                click.echo(f"Client-side filtering: {len(models)} matches out of {original_count} results")
-
-        # Apply client-side sorting for parameters that can't be handled by API
-        client_sort_fields = {
-            "min_rating": "stats.rating",
-            "max_rating": "stats.rating",
-            "min_downloads": "stats.downloadCount",
-            "max_downloads": "stats.downloadCount"
-        }
-
-        for param, field in client_sort_fields.items():
-            if locals()[param] is not None:
-                click.echo(f"Sorting results by {field}")
-                ascending = param.startswith("min_")
-                models = sort_results(models, field, ascending)
-
-        # Add to search history
-        if filter_condition:
-            filter_manager.add_to_history(filter_condition)
-
-        # Display results
-        display_search_results(models, format, output)
-
-        # Show pagination info
-        metadata = response.get("metadata", {})
-        total_count = metadata.get("totalItems", 0)
-        current_page = metadata.get("currentPage", 1)
-        total_pages = metadata.get("totalPages", 1)
-        click.echo(f"\nTotal: {total_count} results, Page: {current_page}/{total_pages}")
-
-        # Show tips
-        click.echo("Tip: Use --filter for complex filter conditions")
-        click.echo("     Use --filter-template to apply saved filter templates")
-
-    except APIError as e:
-        logger.error(f"API Error: {str(e)}")
-        click.echo(f"Search failed: {str(e)}", err=True)
-        sys.exit(1)
+        # 获取配置
+        config = get_config()
+        
+        # 创建API客户端
+        api = CivitaiAPI(
+            api_key=config.get("api_key"),
+            proxy=config.get("proxy"),
+            verify=config.get("verify_ssl", True),
+            timeout=config.get("timeout", 30),
+            max_retries=config.get("max_retries", 3),
+        )
+        
+        # 使用筛选条件管理器
+        filter_manager = FilterManager()
+        
+        # 确定筛选条件
+        condition = determine_filter_condition(
+            query=query,
+            types=types, 
+            tag=tag,
+            sort=sort,
+            limit=limit,
+            nsfw=nsfw,
+            creator=creator,
+            base_model=base_model,
+            filter_json=filter,
+            template_name=template,
+            filter_manager=filter_manager
+        )
+        
+        # 使用FilterBuilder构建API参数
+        filter_builder = FilterBuilder()
+        params = filter_builder.build_params(condition)
+        
+        # 保存筛选历史
+        filter_manager.add_to_history(condition)
+        
+        # 获取模型列表
+        results = api.get_models(**params)
+        
+        # 处理结果
+        display_model_results(results, format)
+            
     except Exception as e:
-        logger.exception(f"Search failed: {str(e)}")
-        click.echo(f"Search failed: {str(e)}", err=True)
+        click.secho(f"浏览模型时出错: {str(e)}", fg="red")
+        logger.exception("浏览模型失败")
         sys.exit(1)
+
+# 这个函数用来确定最终的筛选条件
+def determine_filter_condition(
+    query: Optional[str] = None,
+    types: Optional[List[str]] = None,
+    tag: Optional[str] = None,
+    sort: Optional[str] = None,
+    limit: Optional[int] = None,
+    nsfw: Optional[bool] = None,
+    creator: Optional[str] = None,
+    base_model: Optional[str] = None,
+    filter_json: Optional[str] = None,
+    template_name: Optional[str] = None,
+    filter_manager: Optional[FilterManager] = None
+) -> Dict[str, Any]:
+    """确定筛选条件，优先级: 筛选模板 > 高级筛选条件 > 基本参数"""
+    
+    # 如果提供了模板名称，使用模板
+    if template_name and filter_manager:
+        template = filter_manager.get_template(template_name)
+        if template:
+            # 添加限制参数（如果模板中没有指定）
+            if limit and "limit" not in json.dumps(template):
+                # 深拷贝模板以避免修改原始模板
+                import copy
+                condition = copy.deepcopy(template)
+                if "and" in condition:
+                    condition["and"].append({"field": "limit", "op": "eq", "value": limit})
+                else:
+                    condition = {
+                        "and": [
+                            condition,
+                            {"field": "limit", "op": "eq", "value": limit}
+                        ]
+                    }
+                return condition
+            return template
+        else:
+            click.echo(f"未找到模板: {template_name}")
+    
+    # 如果提供了高级筛选条件，解析并使用
+    if filter_json:
+        try:
+            condition = parse_filter_condition(filter_json)
+            
+            # 添加限制参数（如果没有指定）
+            if limit and "limit" not in filter_json:
+                if "and" in condition:
+                    condition["and"].append({"field": "limit", "op": "eq", "value": limit})
+                else:
+                    condition = {
+                        "and": [
+                            condition,
+                            {"field": "limit", "op": "eq", "value": limit}
+                        ]
+                    }
+            
+            return condition
+        except Exception as e:
+            logger.error(f"解析筛选条件失败: {e}")
+            click.echo(f"解析筛选条件失败: {e}")
+    
+    # 使用基本参数构建条件
+    condition = {"and": []}
+    
+    if query:
+        condition["and"].append({"field": "query", "op": "eq", "value": query})
+    
+    if types:
+        # 支持多类型
+        condition["and"].append({"field": "types", "op": "eq", "value": list(types)})
+    
+    if tag:
+        condition["and"].append({"field": "tag", "op": "eq", "value": tag})
+    
+    if sort:
+        condition["and"].append({"field": "sort", "op": "eq", "value": sort})
+    
+    if limit:
+        condition["and"].append({"field": "limit", "op": "eq", "value": limit})
+    
+    if nsfw:
+        condition["and"].append({"field": "nsfw", "op": "eq", "value": nsfw})
+    
+    if creator:
+        condition["and"].append({"field": "username", "op": "eq", "value": creator})
+    
+    if base_model:
+        condition["and"].append({"field": "baseModel", "op": "eq", "value": base_model})
+    
+    # 如果没有任何条件，返回空查询
+    if not condition["and"]:
+        condition = {"field": "query", "op": "eq", "value": ""}
+    
+    return condition
 
 
 @browse.command("templates")
@@ -281,79 +271,6 @@ def browse_history(limit: int, clear: bool) -> None:
         click.echo(f"{i+1}. [{record['timestamp']}]\n   {json.dumps(record['condition'], indent=2)}")
         if i < len(history) - 1:
             click.echo("")
-
-
-def determine_filter_condition(
-    filter_json: Optional[str],
-    template_name: Optional[str],
-    query: Optional[str],
-    type: Optional[str],
-    creator: Optional[str],
-    tag: Optional[str],
-    base_model: Optional[str],
-    min_rating: Optional[float],
-    max_rating: Optional[float],
-    min_downloads: Optional[int],
-    max_downloads: Optional[int]
-) -> Dict[str, Any]:
-    """Determine filter condition with priority: filter > template > other parameters.
-
-    Args:
-        filter_json: JSON filter condition (highest priority)
-        template_name: Name of a saved filter template
-        query: Search query keyword
-        type: Model type filter
-        creator: Creator username filter
-        tag: Tag filter
-        base_model: Base model filter
-        min_rating: Minimum rating threshold
-        max_rating: Maximum rating threshold
-        min_downloads: Minimum downloads threshold
-        max_downloads: Maximum downloads threshold
-
-    Returns:
-        Filter condition dictionary
-
-    Raises:
-        SystemExit: If filter JSON parsing fails or template not found
-    """
-    if filter_json:
-        try:
-            return json.loads(filter_json)
-        except json.JSONDecodeError as e:
-            click.echo(f"Failed to parse filter condition: {str(e)}", err=True)
-            sys.exit(1)
-
-    if template_name:
-        template = filter_manager.get_template(template_name)
-        if template:
-            return template
-        else:
-            click.echo(f"Filter template '{template_name}' not found", err=True)
-            sys.exit(1)
-
-    # Build filter condition from parameters
-    cli_params = {
-        "query": query,
-        "type": type,
-        "creator": creator,
-        "tag": tag,
-        "base_model": base_model,
-        "min_rating": min_rating,
-        "max_rating": max_rating,
-        "min_downloads": min_downloads,
-        "max_downloads": max_downloads
-    }
-
-    # Remove None values
-    cli_params = {k: v for k, v in cli_params.items() if v is not None}
-
-    # Return empty dict if no parameters provided
-    if not cli_params:
-        return {}
-
-    # Convert to filter condition
-    return FilterParser.parse_cli_params(cli_params)
 
 
 def display_search_results(models: List[Dict[str, Any]], format_type: str, output_file: Optional[str] = None) -> None:
@@ -545,6 +462,31 @@ def interactive_filter_builder() -> Dict[str, Any]:
         return conditions[0]
 
 
+def display_model_results(results: Dict[str, Any], format_type: str) -> None:
+    """处理并显示模型搜索结果
+    
+    Args:
+        results: API返回的搜索结果
+        format_type: 输出格式 (table/json)
+    """
+    if not results or "items" not in results:
+        click.echo("未找到结果")
+        return
+    
+    models = results.get("items", [])
+    metadata = results.get("metadata", {})
+    
+    # 调用已有的display_search_results函数来显示结果
+    display_search_results(models, format_type)
+    
+    # 显示元数据信息
+    total_items = metadata.get("totalItems", len(models))
+    current_page = metadata.get("currentPage", 1)
+    total_pages = metadata.get("totalPages", 1)
+    
+    click.echo(f"总共找到 {total_items} 个模型, 当前页: {current_page} / {total_pages}")
+
+
 @click.command("search")
 @click.argument("query", required=False)
 @click.option("--limit", type=int, default=10, help="结果数量限制")
@@ -581,7 +523,7 @@ def search_models(
             "limit": limit,
             "page": page,
             "query": query,
-            "types": [type] if type else None,
+            "type": type,  # 修改这里，从"types"改为"type"
             "sort": sort,
             "period": period,
             "nsfw": nsfw,
@@ -592,7 +534,7 @@ def search_models(
         params = {k: v for k, v in params.items() if v is not None}
 
         click.echo(f"正在搜索模型 (查询: {query or '无'}, 类型: {type or '所有'}, 限制: {limit})...")
-        results = api.get_models(params=params)
+        results = api.get_models(**params)
 
         models = results.get("items", [])
         metadata = results.get("metadata", {})

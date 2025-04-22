@@ -6,8 +6,11 @@ import operator
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, TypeVar
 
-# Configure logging
-logger = logging.getLogger(__name__)
+from civitai_dl.utils.config import CONFIG_DIR  # 添加CONFIG_DIR的导入
+from civitai_dl.utils.logger import get_logger  # 使用统一的日志记录器
+
+# 使用项目的日志系统
+logger = get_logger(__name__)
 
 # Type variable for flexible return types
 T = TypeVar('T')
@@ -312,11 +315,14 @@ class FilterParser:
         # Field mapping to API parameters
         field_mapping = {
             "name": "query",
-            "type": "types",
+            "types": "types",
+            "tag": "tag",
+            "sort": "sort",
+            "limit": "limit",
+            "nsfw": "nsfw",
             "creator.username": "username",
-            "tags": "tag",
             "modelVersions.baseModel": "baseModel",
-            # Rating and download count need to be filtered on the client side
+            # 其余API参数可按需补充
         }
 
         # Operator mapping
@@ -340,153 +346,166 @@ class FilterParser:
 
 
 class FilterManager:
-    """Filter manager for storing and loading filter templates."""
-
-    def __init__(self, templates_file: str = None):
-        """Initialize filter manager.
-
+    """筛选条件管理器，用于保存和加载筛选模板和历史记录"""
+    
+    def __init__(self, templates_file: Optional[str] = None, history_file: Optional[str] = None):
+        """初始化筛选条件管理器
+        
         Args:
-            templates_file: Template file path
+            templates_file: 模板文件路径，如果不提供则使用默认路径
+            history_file: 历史记录文件路径，如果不提供则使用默认路径
         """
-        self.templates_file = templates_file or self._get_default_templates_path()
+        self.templates_file = templates_file or os.path.join(CONFIG_DIR, "filter_templates.json")
+        self.history_file = history_file or os.path.join(CONFIG_DIR, "filter_history.json")
         self.templates = self._load_templates()
-        self.history = []
-
-        # Add default templates if none exist
-        if not self.templates:
-            self._add_default_templates()
-
-    def _get_default_templates_path(self) -> str:
-        """Get the default template file path.
-
-        Returns:
-            Default template file path
-        """
-        # Use configuration directory in user's home directory
-        config_dir = os.path.join(os.path.expanduser("~"), ".civitai-downloader")
-        os.makedirs(config_dir, exist_ok=True)
-        return os.path.join(config_dir, "filter_templates.json")
-
+        self.history = self._load_history()
+    
     def _load_templates(self) -> Dict[str, Dict[str, Any]]:
-        """Load filter templates.
-
-        Returns:
-            Template dictionary {name: condition}
-        """
+        """加载筛选模板"""
         try:
-            if not os.path.exists(self.templates_file):
-                return {}
-
-            with open(self.templates_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
+            if os.path.exists(self.templates_file):
+                with open(self.templates_file, "r", encoding="utf-8") as f:
+                    templates = json.load(f)
+                return templates
+            return DEFAULT_TEMPLATES.copy()
         except Exception as e:
-            logger.warning(f"Failed to load filter templates: {str(e)}")
-            return {}
-
+            logger.error(f"加载筛选模板失败: {str(e)}")
+            return DEFAULT_TEMPLATES.copy()
+    
     def _save_templates(self) -> bool:
-        """Save filter templates.
-
-        Returns:
-            True if successful, False otherwise
-        """
+        """保存筛选模板"""
         try:
-            # Ensure directory exists
+            # 确保目录存在
             os.makedirs(os.path.dirname(self.templates_file), exist_ok=True)
-
-            with open(self.templates_file, 'w', encoding='utf-8') as f:
-                json.dump(self.templates, f, indent=4, ensure_ascii=False)
+            
+            with open(self.templates_file, "w", encoding="utf-8") as f:
+                json.dump(self.templates, f, indent=2, ensure_ascii=False)
             return True
         except Exception as e:
-            logger.error(f"Failed to save filter templates: {str(e)}")
+            logger.error(f"保存筛选模板失败: {str(e)}")
             return False
-
-    def _add_default_templates(self) -> None:
-        """Add default filter templates."""
-        for name, template in DEFAULT_TEMPLATES.items():
-            self.add_template(name, template)
-
-    def add_template(self, name: str, condition: Dict[str, Any]) -> bool:
-        """Add a filter template.
-
-        Args:
-            name: Template name
-            condition: Filter condition
-
-        Returns:
-            True if successful, False otherwise
-        """
+    
+    def _load_history(self) -> List[Dict[str, Any]]:
+        """加载筛选历史记录"""
         try:
-            # Validate condition format
-            FilterCondition(condition)
-
-            # Save template
-            self.templates[name] = condition
-            return self._save_templates()
+            if os.path.exists(self.history_file):
+                with open(self.history_file, "r", encoding="utf-8") as f:
+                    history = json.load(f)
+                return history
+            return []
         except Exception as e:
-            logger.error(f"Failed to add filter template: {str(e)}")
+            logger.error(f"加载筛选历史记录失败: {str(e)}")
+            return []
+    
+    def _save_history(self) -> bool:
+        """保存筛选历史记录"""
+        try:
+            # 确保目录存在
+            os.makedirs(os.path.dirname(self.history_file), exist_ok=True)
+            
+            with open(self.history_file, "w", encoding="utf-8") as f:
+                json.dump(self.history, f, indent=2, ensure_ascii=False)
+            return True
+        except Exception as e:
+            logger.error(f"保存筛选历史记录失败: {str(e)}")
             return False
-
-    def remove_template(self, name: str) -> bool:
-        """Remove a filter template.
-
-        Args:
-            name: Template name
-
-        Returns:
-            True if successful, False otherwise
-        """
-        if name not in self.templates:
-            return False
-
-        del self.templates[name]
-        return self._save_templates()
-
+    
     def get_template(self, name: str) -> Optional[Dict[str, Any]]:
-        """Get a filter template.
-
+        """获取筛选模板
+        
         Args:
-            name: Template name
-
+            name: 模板名称
+            
         Returns:
-            Filter condition, or None if not found
+            筛选模板字典，如果不存在则返回None
         """
         return self.templates.get(name)
-
-    def list_templates(self) -> Dict[str, Dict[str, Any]]:
-        """List all filter templates.
-
+    
+    def get_all_templates(self) -> Dict[str, Dict[str, Any]]:
+        """获取所有筛选模板
+        
         Returns:
-            Template dictionary
+            所有筛选模板的字典
         """
-        return self.templates.copy()
-
-    def add_to_history(self, condition: Dict[str, Any]) -> None:
-        """Add filter condition to history.
-
+        return self.templates
+    
+    def add_template(self, name: str, condition: Dict[str, Any]) -> bool:
+        """添加或更新筛选模板
+        
         Args:
-            condition: Filter condition
-        """
-        # Add to the beginning of history
-        self.history.insert(0, {
-            "condition": condition,
-            "timestamp": datetime.now().isoformat()
-        })
-
-        # Limit history length
-        if len(self.history) > 20:
-            self.history = self.history[:20]
-
-    def get_history(self) -> List[Dict[str, Any]]:
-        """Get filter history.
-
+            name: 模板名称
+            condition: 筛选条件
+            
         Returns:
-            History list
+            是否成功添加或更新
         """
-        return self.history.copy()
-
-    def clear_history(self) -> None:
-        """Clear history."""
+        self.templates[name] = condition
+        return self._save_templates()
+    
+    def remove_template(self, name: str) -> bool:
+        """删除筛选模板
+        
+        Args:
+            name: 模板名称
+            
+        Returns:
+            是否成功删除
+        """
+        if name in self.templates:
+            del self.templates[name]
+            return self._save_templates()
+        return False
+    
+    def add_to_history(self, condition: Dict[str, Any]) -> bool:
+        """添加筛选条件到历史记录
+        
+        Args:
+            condition: 筛选条件
+            
+        Returns:
+            是否成功添加
+        """
+        # 添加时间戳
+        record = {
+            "timestamp": datetime.now().isoformat(),
+            "condition": condition
+        }
+        
+        # 添加到历史记录前面
+        self.history.insert(0, record)
+        
+        # 限制历史记录数量
+        if len(self.history) > 50:
+            self.history = self.history[:50]
+        
+        return self._save_history()
+    
+    def get_history(self) -> List[Dict[str, Any]]:
+        """获取筛选历史记录
+        
+        Returns:
+            筛选历史记录列表
+        """
+        return self.history
+    
+    def clear_history(self) -> bool:
+        """清空筛选历史记录
+        
+        Returns:
+            是否成功清空
+        """
         self.history = []
+        return self._save_history()
+    
+    def list_templates(self) -> Dict[str, Dict[str, Any]]:
+        """获取所有模板的列表
+        
+        这是get_all_templates的别名，提供更直观的方法名
+        
+        Returns:
+            模板字典，键为模板名称，值为筛选条件
+        """
+        return self.get_all_templates()
 
 
 def apply_filter(items: List[Dict[str, Any]], condition: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -563,3 +582,46 @@ DEFAULT_TEMPLATES = {
         ]
     }
 }
+
+class FilterBuilder:
+    """构建用于API请求的筛选参数"""
+    
+    def __init__(self):
+        """初始化筛选参数构建器"""
+        pass
+    
+    def build_params(self, condition: Dict[str, Any]) -> Dict[str, Any]:
+        """将筛选条件转换为API请求参数
+        
+        Args:
+            condition: 筛选条件字典
+            
+        Returns:
+            API请求参数字典
+        """
+        return FilterParser.to_api_params(condition)
+
+
+def parse_filter_condition(condition_str: str) -> Dict[str, Any]:
+    """解析筛选条件字符串
+    
+    支持多种格式：JSON、简单查询字符串等
+    
+    Args:
+        condition_str: 筛选条件字符串
+        
+    Returns:
+        解析后的筛选条件字典
+        
+    Raises:
+        ValueError: 解析失败时
+    """
+    # 尝试解析为JSON
+    if condition_str.strip().startswith("{"):
+        try:
+            return FilterParser.parse_json(condition_str)
+        except ValueError:
+            pass
+    
+    # 尝试解析为简单查询字符串
+    return FilterParser.parse_query_string(condition_str)
