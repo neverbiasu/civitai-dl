@@ -1,7 +1,6 @@
-"""Configuration management utilities for Civitai Downloader.
+"""配置管理工具
 
-Provides functions and classes to load, save, and access application configuration
-settings from JSON files or environment variables.
+处理程序配置的读取、保存和默认值设置
 """
 
 import os
@@ -12,9 +11,35 @@ from civitai_dl.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Default configuration file path
-DEFAULT_CONFIG_PATH = os.path.expanduser("~/.civitai-downloader/config.json")
+# 定义配置文件路径
+USER_HOME = os.path.expanduser("~")
+CONFIG_DIR = os.path.join(USER_HOME, ".civitai_dl")
+CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 
+# 默认配置
+DEFAULT_CONFIG = {
+    "api_key": "",
+    "output_dir": os.path.join(USER_HOME, "Downloads", "civitai"),
+    "concurrent_downloads": 3,
+    "max_retries": 3,
+    "timeout": 30,
+    "verify_ssl": True,
+    "proxy": "",
+    "download_images": True,
+    "save_metadata": True,
+    "file_exists_action": "ask",  # ask, skip, overwrite, rename
+    "path_template": "{type}/{creator}/{name}",
+    "preferred_format": "SafeTensor",
+}
+
+# 显式定义可以从此模块导入的名称
+__all__ = [
+    'CONFIG_DIR', 'CONFIG_FILE', 'DEFAULT_CONFIG',
+    'get_config', 'save_config', 'update_config', 
+    'get_config_value', 'set_config_value', 
+    'add_recent_directory', 'get_download_dir',
+    'ensure_config_dir', 'get_config_path'
+]
 
 def get_config_path() -> str:
     """Get the path to the configuration file.
@@ -24,7 +49,7 @@ def get_config_path() -> str:
     Returns:
         Configuration file path
     """
-    return os.environ.get("CIVITAI_CONFIG_PATH", DEFAULT_CONFIG_PATH)
+    return os.environ.get("CIVITAI_CONFIG_PATH", CONFIG_FILE)
 
 
 def get_config() -> Dict[str, Any]:
@@ -82,29 +107,7 @@ def get_default_config() -> Dict[str, Any]:
     Returns:
         Default configuration dictionary
     """
-    return {
-        "api_key": "",
-        "proxy": "",
-        "verify_ssl": True,
-        "timeout": 30,
-        "max_retries": 3,
-        "output_dir": os.path.join(os.getcwd(), "downloads"),
-        "concurrent_downloads": 3,
-        "chunk_size": 8192,
-        "path_template": "{type}/{creator}/{name}",
-        "image_path_template": "images/{model_id}/{image_id}",
-        "theme": "light",
-        "recent_directories": [],
-        "model_type_dirs": {
-            "Checkpoint": "Checkpoints",
-            "LORA": "LoRAs",
-            "TextualInversion": "Embeddings",
-            "Hypernetwork": "Hypernetworks",
-            "AestheticGradient": "AestheticGradients",
-            "Controlnet": "ControlNets",
-            "Poses": "Poses"
-        },
-    }
+    return DEFAULT_CONFIG
 
 
 def set_config_value(key: str, value: Any) -> bool:
