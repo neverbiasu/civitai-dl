@@ -1,7 +1,6 @@
-"""Metadata processing utilities for Civitai Downloader.
+"""元数据处理工具
 
-This module handles extraction, parsing, and management of metadata from
-downloaded images and models, supporting various generation parameters formats.
+用于提取、保存和管理模型和图像的元数据信息
 """
 
 import os
@@ -311,3 +310,128 @@ def extract_model_info_from_image(metadata: Dict[str, Any]) -> Dict[str, Any]:
             model_info['loras'] = loras
 
     return model_info
+
+
+def save_metadata_to_json(metadata: Dict[str, Any], output_path: str, filename: Optional[str] = None) -> str:
+    """将元数据保存为JSON文件
+    
+    Args:
+        metadata: 要保存的元数据字典
+        output_path: 保存目录
+        filename: 可选的文件名，如果不提供则自动生成
+        
+    Returns:
+        保存的JSON文件路径
+        
+    Raises:
+        IOError: 如果无法创建目录或写入文件
+    """
+    try:
+        # 确保输出目录存在
+        os.makedirs(output_path, exist_ok=True)
+        
+        # 如果没有提供文件名，使用默认名称
+        if not filename:
+            # 尝试从元数据中获取有意义的名称
+            model_name = metadata.get("name", "")
+            if model_name:
+                # 规范化文件名，替换不允许的字符
+                safe_name = re.sub(r'[\\/*?:"<>|]', "_", model_name)
+                filename = f"{safe_name}_metadata.json"
+            else:
+                filename = "metadata.json"
+        
+        # 确保文件名有.json扩展名
+        if not filename.endswith(".json"):
+            filename += ".json"
+        
+        file_path = os.path.join(output_path, filename)
+        
+        # 保存为JSON文件
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=2, ensure_ascii=False)
+        
+        logger.debug(f"元数据已保存至 {file_path}")
+        return file_path
+        
+    except Exception as e:
+        logger.error(f"保存元数据失败: {str(e)}")
+        raise IOError(f"无法保存元数据: {str(e)}")
+
+
+def extract_model_metadata(model_data: Dict[str, Any]) -> Dict[str, Any]:
+    """从模型数据中提取元数据
+    
+    Args:
+        model_data: 模型API响应数据
+        
+    Returns:
+        提取的元数据字典
+    """
+    # ...existing code...
+    metadata = {
+        "id": model_data.get("id"),
+        "name": model_data.get("name"),
+        "type": model_data.get("type"),
+        "description": model_data.get("description"),
+        "creator": model_data.get("creator", {}).get("username"),
+        "creator_id": model_data.get("creator", {}).get("id"),
+        "stats": model_data.get("stats", {}),
+        "tags": [tag.get("name") for tag in model_data.get("tags", [])],
+        "nsfw": model_data.get("nsfw", False),
+        "versions": []
+    }
+    
+    # 添加版本信息
+    for version in model_data.get("modelVersions", []):
+        version_info = {
+            "id": version.get("id"),
+            "name": version.get("name"),
+            "created_at": version.get("createdAt"),
+            "updated_at": version.get("updatedAt"),
+            "base_model": version.get("baseModel"),
+            "trained_words": version.get("trainedWords", []),
+            "files": []
+        }
+        
+        # 添加文件信息
+        for file in version.get("files", []):
+            file_info = {
+                "id": file.get("id"),
+                "name": file.get("name"),
+                "size_kb": file.get("sizeKB"),
+                "type": file.get("type"),
+                "format": file.get("metadata", {}).get("format"),
+                "fp": file.get("metadata", {}).get("fp"),
+                "is_primary": file.get("primary", False)
+            }
+            version_info["files"].append(file_info)
+        
+        metadata["versions"].append(version_info)
+    
+    return metadata
+
+
+def load_metadata_from_json(file_path: str) -> Optional[Dict[str, Any]]:
+    """从JSON文件加载元数据
+    
+    Args:
+        file_path: JSON文件路径
+        
+    Returns:
+        加载的元数据字典，如果加载失败则返回None
+    """
+    try:
+        if not os.path.exists(file_path):
+            logger.warning(f"元数据文件不存在: {file_path}")
+            return None
+            
+        with open(file_path, "r", encoding="utf-8") as f:
+            metadata = json.load(f)
+            
+        logger.debug(f"已从 {file_path} 加载元数据")
+        return metadata
+        
+    except Exception as e:
+        logger.error(f"加载元数据失败: {str(e)}")
+        return None
