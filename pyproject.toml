@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "civitai-dl"
-version = "0.1.1"
+version = "0.1.2"
 description = "A tool for browsing and downloading resources from Civitai"
 authors = ["Civitai Downloader Team"]
 readme = "README.md"
