@@ -31,8 +31,8 @@ black = "^23.1.0"
 isort = "^5.12.0"
 flake8 = "^7.1.2"
 mypy = "^1.0.0"
-autopep8 = {version = "^2.3.2", python = ">=3.9,<4.0"}
 autoflake = "^2.3.1"
+autopep8 = { version = "^2.3.2", markers = "python_version >= '3.9' and python_version < '4.0'" }
 
 [tool.poetry.scripts]
 civitai-dl = "civitai_dl.cli.main:main"
