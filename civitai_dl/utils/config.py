@@ -35,11 +35,12 @@ DEFAULT_CONFIG = {
 # 显式定义可以从此模块导入的名称
 __all__ = [
     'CONFIG_DIR', 'CONFIG_FILE', 'DEFAULT_CONFIG',
-    'get_config', 'save_config', 'update_config', 
-    'get_config_value', 'set_config_value', 
+    'get_config', 'save_config',
+    'get_config_value', 'set_config_value',
     'add_recent_directory', 'get_download_dir',
-    'ensure_config_dir', 'get_config_path'
+    'get_config_path'
 ]
+
 
 def get_config_path() -> str:
     """Get the path to the configuration file.

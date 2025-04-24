@@ -314,22 +314,22 @@ def extract_model_info_from_image(metadata: Dict[str, Any]) -> Dict[str, Any]:
 
 def save_metadata_to_json(metadata: Dict[str, Any], output_path: str, filename: Optional[str] = None) -> str:
     """将元数据保存为JSON文件
-    
+
     Args:
         metadata: 要保存的元数据字典
         output_path: 保存目录
         filename: 可选的文件名，如果不提供则自动生成
-        
+
     Returns:
         保存的JSON文件路径
-        
+
     Raises:
         IOError: 如果无法创建目录或写入文件
     """
     try:
         # 确保输出目录存在
         os.makedirs(output_path, exist_ok=True)
-        
+
         # 如果没有提供文件名，使用默认名称
         if not filename:
             # 尝试从元数据中获取有意义的名称
@@ -340,20 +340,20 @@ def save_metadata_to_json(metadata: Dict[str, Any], output_path: str, filename: 
                 filename = f"{safe_name}_metadata.json"
             else:
                 filename = "metadata.json"
-        
+
         # 确保文件名有.json扩展名
         if not filename.endswith(".json"):
             filename += ".json"
-        
+
         file_path = os.path.join(output_path, filename)
-        
+
         # 保存为JSON文件
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2, ensure_ascii=False)
-        
+
         logger.debug(f"元数据已保存至 {file_path}")
         return file_path
-        
+
     except Exception as e:
         logger.error(f"保存元数据失败: {str(e)}")
         raise IOError(f"无法保存元数据: {str(e)}")
@@ -361,10 +361,10 @@ def save_metadata_to_json(metadata: Dict[str, Any], output_path: str, filename: 
 
 def extract_model_metadata(model_data: Dict[str, Any]) -> Dict[str, Any]:
     """从模型数据中提取元数据
-    
+
     Args:
         model_data: 模型API响应数据
-        
+
     Returns:
         提取的元数据字典
     """
@@ -381,7 +381,7 @@ def extract_model_metadata(model_data: Dict[str, Any]) -> Dict[str, Any]:
         "nsfw": model_data.get("nsfw", False),
         "versions": []
     }
-    
+
     # 添加版本信息
     for version in model_data.get("modelVersions", []):
         version_info = {
@@ -393,7 +393,7 @@ def extract_model_metadata(model_data: Dict[str, Any]) -> Dict[str, Any]:
             "trained_words": version.get("trainedWords", []),
             "files": []
         }
-        
+
         # 添加文件信息
         for file in version.get("files", []):
             file_info = {
@@ -406,18 +406,18 @@ def extract_model_metadata(model_data: Dict[str, Any]) -> Dict[str, Any]:
                 "is_primary": file.get("primary", False)
             }
             version_info["files"].append(file_info)
-        
+
         metadata["versions"].append(version_info)
-    
+
     return metadata
 
 
 def load_metadata_from_json(file_path: str) -> Optional[Dict[str, Any]]:
     """从JSON文件加载元数据
-    
+
     Args:
         file_path: JSON文件路径
-        
+
     Returns:
         加载的元数据字典，如果加载失败则返回None
     """
@@ -425,13 +425,13 @@ def load_metadata_from_json(file_path: str) -> Optional[Dict[str, Any]]:
         if not os.path.exists(file_path):
             logger.warning(f"元数据文件不存在: {file_path}")
             return None
-            
+
         with open(file_path, "r", encoding="utf-8") as f:
             metadata = json.load(f)
-            
+
         logger.debug(f"已从 {file_path} 加载元数据")
         return metadata
-        
+
     except Exception as e:
         logger.error(f"加载元数据失败: {str(e)}")
         return None

@@ -25,9 +25,11 @@ class FilterBuilder:
     def __init__(self) -> None:
         """Initialize the filter builder with a filter manager."""
         self.filter_manager = FilterManager()
-        self.templates = self.filter_manager.list_templates()
+        self.templates = self.filter_manager.get_all_templates()  # 使用正确的方法名
         self.current_condition: Dict[str, Any] = {}
         self.temp_conditions: List[Dict[str, Any]] = []
+        # 存储UI组件的引用
+        self.components = {}
 
     def create_ui(self) -> Tuple[gr.Accordion, gr.JSON, gr.Button, gr.Button, gr.Button]:
         """Create the filter builder UI components.
@@ -53,7 +55,9 @@ class FilterBuilder:
                         ],
                         label="字段",
                         value="name"
-                    )  # noqa: F841
+                    )
+                    # 保存组件引用
+                    self.components["field_dropdown"] = field_dropdown
 
                     operator_dropdown = gr.Dropdown(
                         choices=[
@@ -63,56 +67,72 @@ class FilterBuilder:
                             "contains (contains)", "startswith (starts with)",
                             "endswith (ends with)", "regex (regex match)"
                         ],
-                        label="Operator",
+                        label="操作符",
                         value="contains (contains)"
                     )
+                    self.components["operator_dropdown"] = operator_dropdown
 
-                    value_input = gr.Textbox(label="Value")
+                    value_input = gr.Textbox(label="值")
+                    self.components["value_input"] = value_input
 
                     logic_radio = gr.Radio(
                         choices=["AND", "OR"],
-                        label="Logic Operator",
+                        label="逻辑操作符",
                         value="AND"
                     )
+                    self.components["logic_radio"] = logic_radio
 
-                    add_condition_btn = gr.Button("Add Condition")
+                    add_condition_btn = gr.Button("添加条件")
+                    self.components["add_condition_btn"] = add_condition_btn
 
                     # Template management
-                    template_name = gr.Textbox(label="Template Name")
+                    template_name = gr.Textbox(label="模板名称")
+                    self.components["template_name"] = template_name
 
                     template_list = gr.Dropdown(
                         choices=list(self.templates.keys()),
-                        label="Load Template"
+                        label="加载模板"
                     )
+                    self.components["template_list"] = template_list
 
                     with gr.Row():
-                        save_template_btn = gr.Button("Save Template")
-                        load_template_btn = gr.Button("Load Template")
+                        save_template_btn = gr.Button("保存模板")
+                        self.components["save_template_btn"] = save_template_btn
+
+                        load_template_btn = gr.Button("加载模板")
+                        self.components["load_template_btn"] = load_template_btn
 
                 with gr.Column(scale=1):
                     # Current filter display
                     current_filter = gr.JSON(
-                        label="Current Filter",
+                        label="当前筛选条件",
                         value={}
                     )
+                    self.components["current_filter"] = current_filter
 
                     conditions_list = gr.Dataframe(
-                        headers=["Field", "Operator", "Value"],
-                        label="Current Conditions",
+                        headers=["字段", "操作符", "值"],
+                        label="当前条件",
                         interactive=False,
                         value=[]
                     )
+                    self.components["conditions_list"] = conditions_list
 
                     preview_output = gr.Textbox(
-                        label="Preview",
+                        label="预览",
                         interactive=False
                     )
+                    self.components["preview_output"] = preview_output
 
                     with gr.Row():
-                        clear_btn = gr.Button("Clear Filter")
-                        preview_btn = gr.Button("Preview Results")
+                        clear_btn = gr.Button("清除筛选")
+                        self.components["clear_btn"] = clear_btn
 
-                    apply_filter_btn = gr.Button("Apply Filter", variant="primary")
+                        preview_btn = gr.Button("预览结果")
+                        self.components["preview_btn"] = preview_btn
+
+                    apply_filter_btn = gr.Button("应用筛选", variant="primary")
+                    self.components["apply_filter_btn"] = apply_filter_btn
 
         return filter_accordion, current_filter, apply_filter_btn, save_template_btn, load_template_btn
 
@@ -133,33 +153,17 @@ class FilterBuilder:
         """
         filter_accordion, current_filter, apply_filter_btn, save_template_btn, load_template_btn = components
 
-        # 修复 F841: 标记未使用变量或将其删除
-        # Find components within the accordion
-        add_condition_btn = None
-        clear_btn = None
-        preview_btn = None
-        preview_output_element = None  # Renamed to avoid conflict
-
-        # Extract components from accordion
-        try:
-            for component in filter_accordion.children:
-                if isinstance(component, gr.Row):
-                    for col in component.children:
-                        if isinstance(col, gr.Column):
-                            for elem in col.children:
-                                if isinstance(elem, gr.Button) and elem.value == "Add Condition":
-                                    add_condition_btn = elem
-                                elif isinstance(elem, gr.Button) and elem.value == "Clear Filter":
-                                    clear_btn = elem
-                                elif isinstance(elem, gr.Button) and elem.value == "Preview Results":
-                                    preview_btn = elem
-                                elif isinstance(elem, gr.Textbox) and elem.label == "Preview":
-                                    preview_output_element = elem
-
-                                # 其他组件的定位代码不需要赋值给变量，注释掉以避免未使用变量警告
-                                # 或者可以将不再需要的定位代码完全删除
-        except Exception as e:
-            logger.error(f"Failed to extract components from accordion: {e}")
+        # 使用保存的组件引用
+        field_dropdown = self.components.get("field_dropdown")
+        operator_dropdown = self.components.get("operator_dropdown")
+        value_input = self.components.get("value_input")
+        conditions_list = self.components.get("conditions_list")
+        template_name = self.components.get("template_name")
+        template_list = self.components.get("template_list")
+        add_condition_btn = self.components.get("add_condition_btn")
+        clear_btn = self.components.get("clear_btn")
+        preview_btn = self.components.get("preview_btn")
+        preview_output = self.components.get("preview_output")
 
         # Define callback functions
         def add_condition(field: str, operator: str, value: str,
@@ -233,7 +237,7 @@ class FilterBuilder:
             self.filter_manager.add_template(name, filter_json)
 
             # Reload templates
-            self.templates = self.filter_manager.list_templates()
+            self.templates = self.filter_manager.get_all_templates()
 
             # Return updated dropdown
             return gr.Dropdown(choices=list(self.templates.keys()))
@@ -279,7 +283,7 @@ class FilterBuilder:
 
             return template, table_data
 
-        # Connect callbacks in a single try-except block
+        # Connect callbacks
         try:
             # Add condition button callback
             if add_condition_btn and field_dropdown and operator_dropdown and value_input and conditions_list:
@@ -321,11 +325,12 @@ class FilterBuilder:
                     outputs=[preview_output]
                 )
 
-            if on_apply and apply_filter_btn and current_filter:
+            if on_apply and apply_filter_btn:
                 apply_filter_btn.click(
                     fn=on_apply,
                     inputs=[current_filter],
                     outputs=[]
                 )
         except Exception as e:
-            logger.error(f"Failed to set up filter callbacks: {e}")
+            logger.error(f"Failed to set up filter callbacks: {str(e)}")
+            logger.exception("详细错误信息")

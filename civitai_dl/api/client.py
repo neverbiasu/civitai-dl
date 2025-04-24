@@ -305,7 +305,7 @@ class CivitaiAPI:
         Returns:
             Creator profile details
         """
-        ret
+        return self._make_request("GET", f"creators/{creator_id}")
 
     def search_tags(self, query: str) -> List[Dict[str, Any]]:
         """Search for tags by name.

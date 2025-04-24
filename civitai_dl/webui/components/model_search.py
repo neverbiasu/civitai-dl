@@ -10,6 +10,7 @@ from civitai_dl.api.client import CivitaiAPI
 from civitai_dl.core.downloader import DownloadEngine
 from civitai_dl.utils.config import get_config
 from civitai_dl.utils.logger import get_logger
+from civitai_dl.core.filter import FilterBuilder
 
 logger = get_logger(__name__)
 
@@ -65,30 +66,31 @@ class ModelSearcher:
             Dictionary containing search results and metadata
         """
         try:
-            # Build API parameters
-            params = {
-                "query": query if query else None,
-                "types": model_types,
-                "sort": sort,
-                "nsfw": str(nsfw).lower(),
-                "page": page,
-                "limit": page_size,
-            }
-
-            # Add optional parameters if provided
+            # Build filter conditions
+            condition = {"and": []}
+            if query:
+                condition["and"].append({"field": "query", "op": "eq", "value": query})
+            if model_types:
+                condition["and"].append({"field": "types", "op": "eq", "value": model_types})
             if tags:
-                params["tag"] = tags[0] if len(tags) == 1 else None  # API only supports one tag
+                condition["and"].append({"field": "tag", "op": "eq", "value": tags[0]})
+            if sort:
+                condition["and"].append({"field": "sort", "op": "eq", "value": sort})
+            if nsfw is not None:
+                condition["and"].append({"field": "nsfw", "op": "eq", "value": nsfw})
             if creator:
-                params["username"] = creator
+                condition["and"].append({"field": "username", "op": "eq", "value": creator})
             if base_model:
-                params["baseModel"] = base_model
+                condition["and"].append({"field": "baseModel", "op": "eq", "value": base_model})
+            if page_size:
+                condition["and"].append({"field": "limit", "op": "eq", "value": page_size})
+
+            # Build API parameters
+            params = FilterBuilder().build_params(condition)
 
             # Add any additional parameters
             if additional_params:
                 params.update(additional_params)
-
-            # Remove None values
-            params = {k: v for k, v in params.items() if v is not None}
 
             # Save search parameters for potential reuse
             self.last_search_params = params.copy()

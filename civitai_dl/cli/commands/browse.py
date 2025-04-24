@@ -14,7 +14,7 @@ from tabulate import tabulate
 from civitai_dl.api import CivitaiAPI
 from civitai_dl.api import APIError
 from civitai_dl.core.filter import FilterBuilder, FilterManager, parse_filter_condition
-from civitai_dl.utils.config import get_config, CONFIG_DIR
+from civitai_dl.utils.config import get_config
 from civitai_dl.utils.logger import get_logger
 
 # Configure logging
@@ -49,7 +49,7 @@ def browse_models(query, types, tag, sort, limit, nsfw, format, creator, base_mo
     try:
         # 获取配置
         config = get_config()
-        
+
         # 创建API客户端
         api = CivitaiAPI(
             api_key=config.get("api_key"),
@@ -58,14 +58,14 @@ def browse_models(query, types, tag, sort, limit, nsfw, format, creator, base_mo
             timeout=config.get("timeout", 30),
             max_retries=config.get("max_retries", 3),
         )
-        
+
         # 使用筛选条件管理器
         filter_manager = FilterManager()
-        
+
         # 确定筛选条件
         condition = determine_filter_condition(
             query=query,
-            types=types, 
+            types=types,
             tag=tag,
             sort=sort,
             limit=limit,
@@ -76,26 +76,28 @@ def browse_models(query, types, tag, sort, limit, nsfw, format, creator, base_mo
             template_name=template,
             filter_manager=filter_manager
         )
-        
+
         # 使用FilterBuilder构建API参数
         filter_builder = FilterBuilder()
         params = filter_builder.build_params(condition)
-        
+
         # 保存筛选历史
         filter_manager.add_to_history(condition)
-        
+
         # 获取模型列表
         results = api.get_models(**params)
-        
+
         # 处理结果
         display_model_results(results, format)
-            
+
     except Exception as e:
         click.secho(f"浏览模型时出错: {str(e)}", fg="red")
         logger.exception("浏览模型失败")
         sys.exit(1)
 
 # 这个函数用来确定最终的筛选条件
+
+
 def determine_filter_condition(
     query: Optional[str] = None,
     types: Optional[List[str]] = None,
@@ -110,7 +112,7 @@ def determine_filter_condition(
     filter_manager: Optional[FilterManager] = None
 ) -> Dict[str, Any]:
     """确定筛选条件，优先级: 筛选模板 > 高级筛选条件 > 基本参数"""
-    
+
     # 如果提供了模板名称，使用模板
     if template_name and filter_manager:
         template = filter_manager.get_template(template_name)
@@ -133,12 +135,12 @@ def determine_filter_condition(
             return template
         else:
             click.echo(f"未找到模板: {template_name}")
-    
+
     # 如果提供了高级筛选条件，解析并使用
     if filter_json:
         try:
             condition = parse_filter_condition(filter_json)
-            
+
             # 添加限制参数（如果没有指定）
             if limit and "limit" not in filter_json:
                 if "and" in condition:
@@ -150,44 +152,44 @@ def determine_filter_condition(
                             {"field": "limit", "op": "eq", "value": limit}
                         ]
                     }
-            
+
             return condition
         except Exception as e:
             logger.error(f"解析筛选条件失败: {e}")
             click.echo(f"解析筛选条件失败: {e}")
-    
+
     # 使用基本参数构建条件
     condition = {"and": []}
-    
+
     if query:
         condition["and"].append({"field": "query", "op": "eq", "value": query})
-    
+
     if types:
         # 支持多类型
         condition["and"].append({"field": "types", "op": "eq", "value": list(types)})
-    
+
     if tag:
         condition["and"].append({"field": "tag", "op": "eq", "value": tag})
-    
+
     if sort:
         condition["and"].append({"field": "sort", "op": "eq", "value": sort})
-    
+
     if limit:
         condition["and"].append({"field": "limit", "op": "eq", "value": limit})
-    
+
     if nsfw:
         condition["and"].append({"field": "nsfw", "op": "eq", "value": nsfw})
-    
+
     if creator:
         condition["and"].append({"field": "username", "op": "eq", "value": creator})
-    
+
     if base_model:
         condition["and"].append({"field": "baseModel", "op": "eq", "value": base_model})
-    
+
     # 如果没有任何条件，返回空查询
     if not condition["and"]:
         condition = {"field": "query", "op": "eq", "value": ""}
-    
+
     return condition
 
 
@@ -464,7 +466,7 @@ def interactive_filter_builder() -> Dict[str, Any]:
 
 def display_model_results(results: Dict[str, Any], format_type: str) -> None:
     """处理并显示模型搜索结果
-    
+
     Args:
         results: API返回的搜索结果
         format_type: 输出格式 (table/json)
@@ -472,18 +474,18 @@ def display_model_results(results: Dict[str, Any], format_type: str) -> None:
     if not results or "items" not in results:
         click.echo("未找到结果")
         return
-    
+
     models = results.get("items", [])
     metadata = results.get("metadata", {})
-    
+
     # 调用已有的display_search_results函数来显示结果
     display_search_results(models, format_type)
-    
+
     # 显示元数据信息
     total_items = metadata.get("totalItems", len(models))
     current_page = metadata.get("currentPage", 1)
     total_pages = metadata.get("totalPages", 1)
-    
+
     click.echo(f"总共找到 {total_items} 个模型, 当前页: {current_page} / {total_pages}")
 
 

@@ -1,7 +1,6 @@
 import re
 import os
 import json
-import logging
 import operator
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, TypeVar
@@ -347,10 +346,10 @@ class FilterParser:
 
 class FilterManager:
     """筛选条件管理器，用于保存和加载筛选模板和历史记录"""
-    
+
     def __init__(self, templates_file: Optional[str] = None, history_file: Optional[str] = None):
         """初始化筛选条件管理器
-        
+
         Args:
             templates_file: 模板文件路径，如果不提供则使用默认路径
             history_file: 历史记录文件路径，如果不提供则使用默认路径
@@ -359,7 +358,7 @@ class FilterManager:
         self.history_file = history_file or os.path.join(CONFIG_DIR, "filter_history.json")
         self.templates = self._load_templates()
         self.history = self._load_history()
-    
+
     def _load_templates(self) -> Dict[str, Dict[str, Any]]:
         """加载筛选模板"""
         try:
@@ -371,20 +370,20 @@ class FilterManager:
         except Exception as e:
             logger.error(f"加载筛选模板失败: {str(e)}")
             return DEFAULT_TEMPLATES.copy()
-    
+
     def _save_templates(self) -> bool:
         """保存筛选模板"""
         try:
             # 确保目录存在
             os.makedirs(os.path.dirname(self.templates_file), exist_ok=True)
-            
+
             with open(self.templates_file, "w", encoding="utf-8") as f:
                 json.dump(self.templates, f, indent=2, ensure_ascii=False)
             return True
         except Exception as e:
             logger.error(f"保存筛选模板失败: {str(e)}")
             return False
-    
+
     def _load_history(self) -> List[Dict[str, Any]]:
         """加载筛选历史记录"""
         try:
@@ -396,58 +395,58 @@ class FilterManager:
         except Exception as e:
             logger.error(f"加载筛选历史记录失败: {str(e)}")
             return []
-    
+
     def _save_history(self) -> bool:
         """保存筛选历史记录"""
         try:
             # 确保目录存在
             os.makedirs(os.path.dirname(self.history_file), exist_ok=True)
-            
+
             with open(self.history_file, "w", encoding="utf-8") as f:
                 json.dump(self.history, f, indent=2, ensure_ascii=False)
             return True
         except Exception as e:
             logger.error(f"保存筛选历史记录失败: {str(e)}")
             return False
-    
+
     def get_template(self, name: str) -> Optional[Dict[str, Any]]:
         """获取筛选模板
-        
+
         Args:
             name: 模板名称
-            
+
         Returns:
             筛选模板字典，如果不存在则返回None
         """
         return self.templates.get(name)
-    
+
     def get_all_templates(self) -> Dict[str, Dict[str, Any]]:
         """获取所有筛选模板
-        
+
         Returns:
             所有筛选模板的字典
         """
         return self.templates
-    
+
     def add_template(self, name: str, condition: Dict[str, Any]) -> bool:
         """添加或更新筛选模板
-        
+
         Args:
             name: 模板名称
             condition: 筛选条件
-            
+
         Returns:
             是否成功添加或更新
         """
         self.templates[name] = condition
         return self._save_templates()
-    
+
     def remove_template(self, name: str) -> bool:
         """删除筛选模板
-        
+
         Args:
             name: 模板名称
-            
+
         Returns:
             是否成功删除
         """
@@ -455,13 +454,13 @@ class FilterManager:
             del self.templates[name]
             return self._save_templates()
         return False
-    
+
     def add_to_history(self, condition: Dict[str, Any]) -> bool:
         """添加筛选条件到历史记录
-        
+
         Args:
             condition: 筛选条件
-            
+
         Returns:
             是否成功添加
         """
@@ -470,38 +469,38 @@ class FilterManager:
             "timestamp": datetime.now().isoformat(),
             "condition": condition
         }
-        
+
         # 添加到历史记录前面
         self.history.insert(0, record)
-        
+
         # 限制历史记录数量
         if len(self.history) > 50:
             self.history = self.history[:50]
-        
+
         return self._save_history()
-    
+
     def get_history(self) -> List[Dict[str, Any]]:
         """获取筛选历史记录
-        
+
         Returns:
             筛选历史记录列表
         """
         return self.history
-    
+
     def clear_history(self) -> bool:
         """清空筛选历史记录
-        
+
         Returns:
             是否成功清空
         """
         self.history = []
         return self._save_history()
-    
+
     def list_templates(self) -> Dict[str, Dict[str, Any]]:
         """获取所有模板的列表
-        
+
         这是get_all_templates的别名，提供更直观的方法名
-        
+
         Returns:
             模板字典，键为模板名称，值为筛选条件
         """
@@ -583,19 +582,19 @@ DEFAULT_TEMPLATES = {
     }
 }
 
+
 class FilterBuilder:
     """构建用于API请求的筛选参数"""
-    
+
     def __init__(self):
         """初始化筛选参数构建器"""
-        pass
-    
+
     def build_params(self, condition: Dict[str, Any]) -> Dict[str, Any]:
         """将筛选条件转换为API请求参数
-        
+
         Args:
             condition: 筛选条件字典
-            
+
         Returns:
             API请求参数字典
         """
@@ -604,15 +603,15 @@ class FilterBuilder:
 
 def parse_filter_condition(condition_str: str) -> Dict[str, Any]:
     """解析筛选条件字符串
-    
+
     支持多种格式：JSON、简单查询字符串等
-    
+
     Args:
         condition_str: 筛选条件字符串
-        
+
     Returns:
         解析后的筛选条件字典
-        
+
     Raises:
         ValueError: 解析失败时
     """
@@ -622,6 +621,6 @@ def parse_filter_condition(condition_str: str) -> Dict[str, Any]:
             return FilterParser.parse_json(condition_str)
         except ValueError:
             pass
-    
+
     # 尝试解析为简单查询字符串
     return FilterParser.parse_query_string(condition_str)

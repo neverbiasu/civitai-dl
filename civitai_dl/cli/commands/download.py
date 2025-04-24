@@ -86,7 +86,7 @@ def download_model(model_id, version=None, output=None, with_images=False):
         )
 
         # 构建文件路径
-        file_path = os.path.join(output_dir, target_file["name"])
+        os.path.join(output_dir, target_file["name"])
 
         # 显示下载信息
         model_name = model_info.get("name", f"模型 {model_id}")
