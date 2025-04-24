@@ -2,6 +2,8 @@ name: Publish to PyPI
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*"
   release:
@@ -46,8 +48,19 @@ jobs:
       - name: Build package
         run: poetry build
 
+      - name: Check version on PyPI
+        id: check_version
+        run: |
+          PKG_NAME=$(poetry version | awk '{print $1}')
+          PKG_VERSION=$(poetry version | awk '{print $2}')
+          PYPI_VERSION=$(python -m pip install --upgrade pip > /dev/null 2>&1; python -m pip index versions $PKG_NAME | grep -oP '(?<=Available versions: ).*' | awk -F, '{print $1}' | awk '{print $1}')
+          echo "local_version=$PKG_VERSION" >> $GITHUB_OUTPUT
+          echo "pypi_version=$PYPI_VERSION" >> $GITHUB_OUTPUT
+
       - name: Publish to PyPI
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        if: |
+          (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main') &&
+          steps.check_version.outputs.local_version != steps.check_version.outputs.pypi_version
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           user: __token__
