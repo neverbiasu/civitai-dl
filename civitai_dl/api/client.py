@@ -342,6 +342,19 @@ class CivitaiAPI:
         """
         return self._make_request("GET", f"model-versions/{version_id}")
 
+    def get_model_version(self, version_id: int) -> Dict[str, Any]:
+        """Get details for a specific model version.
+        
+        This is an alias for get_version for backward compatibility.
+
+        Args:
+            version_id: The version ID
+
+        Returns:
+            Version details
+        """
+        return self.get_version(version_id)
+
     def get_version_images(self, version_id: int) -> List[Dict[str, Any]]:
         """Get images for a specific model version.
 
