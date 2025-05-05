@@ -1,79 +1,14 @@
-name: Publish to PyPI
-
+name: Python package
 on:
   push:
-    branches:
-      - main
     tags:
-      - "v*"
-  release:
-    types: [created]
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Version (e.g. 1.0.0)"
-        required: true
-
+      - "v*.*.*"
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - name: Build and publish to pypi
+        uses: JRubics/poetry-publish@v2.1
         with:
-          python-version: "3.9"
-
-      - name: Install poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: 1.5.1
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Load cache
-        uses: actions/cache@v3
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
-
-      - name: Install dependencies
-        run: poetry install --no-interaction --no-root
-
-      - name: Run tests
-        run: |
-          poetry run pytest tests -m "not slow" --cov=civitai_dl
-
-      - name: Build package
-        run: poetry build
-
-      - name: Check version on PyPI
-        id: check_version
-        run: |
-          PKG_NAME=$(poetry version | awk '{print $1}')
-          PKG_VERSION=$(poetry version | awk '{print $2}')
-          PYPI_VERSION=$(python -m pip install --upgrade pip > /dev/null 2>&1; python -m pip index versions $PKG_NAME | grep -oP '(?<=Available versions: ).*' | awk -F, '{print $1}' | awk '{print $1}')
-          echo "local_version=$PKG_VERSION" >> $GITHUB_OUTPUT
-          echo "pypi_version=$PYPI_VERSION" >> $GITHUB_OUTPUT
-
-      - name: Publish to PyPI
-        if: |
-          (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main') &&
-          steps.check_version.outputs.local_version != steps.check_version.outputs.pypi_version
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
-          skip-existing: true
-
-      - name: Create GitHub Release
-        if: github.event_name == 'workflow_dispatch'
-        uses: softprops/action-gh-release@v1
-        with:
-          name: v${{ github.event.inputs.version }}
-          tag_name: v${{ github.event.inputs.version }}
-          files: |
-            dist/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          pypi_token: ${{ secrets.PYPI_TOKEN }}
