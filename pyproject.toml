@@ -59,7 +59,7 @@ target-version = ["py38"]
 profile = "black"
 line_length = 120
 
-[tool.pytest]
+[tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
@@ -75,7 +75,5 @@ markers = [
     "slow: marks tests as slow running",
     "ci: marks tests suitable for continuous integration"
 ]
-
-[tool.pytest.ini_options]
 asyncio_mode = "auto"
 ci = "true"
