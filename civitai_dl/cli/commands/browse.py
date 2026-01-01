@@ -270,7 +270,7 @@ def browse_history(limit: int, clear: bool) -> None:
 
     click.echo("最近的筛选历史:")
     for i, record in enumerate(history[:limit]):
-        click.echo(f"{i+1}. [{record['timestamp']}]\n   {json.dumps(record['condition'], indent=2)}")
+        click.echo(f"{i + 1}. [{record['timestamp']}]\n   {json.dumps(record['condition'], indent=2)}")
         if i < len(history) - 1:
             click.echo("")
 
