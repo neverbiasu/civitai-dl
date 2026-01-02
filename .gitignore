@@ -42,3 +42,8 @@ poetry.lock
 downloads/
 images/
 *.log
+
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/
