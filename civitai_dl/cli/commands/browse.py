@@ -127,7 +127,9 @@ def determine_filter_condition(
     return _build_basic_condition(query, types, tag, sort, limit, nsfw, creator, base_model)
 
 
-def _get_template_condition(template_name: str, filter_manager: FilterManager, limit: Optional[int]) -> Optional[Dict[str, Any]]:
+def _get_template_condition(
+    template_name: str, filter_manager: FilterManager, limit: Optional[int]
+) -> Optional[Dict[str, Any]]:
     """获取模板条件"""
     template = filter_manager.get_template(template_name)
     if not template:
