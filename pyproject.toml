@@ -76,4 +76,3 @@ markers = [
     "ci: marks tests suitable for continuous integration"
 ]
 asyncio_mode = "auto"
-ci = "true"

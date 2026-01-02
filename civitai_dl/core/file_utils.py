@@ -47,11 +47,12 @@ def get_download_location(model_info: Dict[str, Any], version_info: Dict[str, An
         if recent_dirs:
             print("Recent download directories:")
             for i, directory in enumerate(recent_dirs):
-                print(f"{i + 1}. {directory}")
+                print(f"{i+1}. {directory}")
 
         # Ask user for directory
         while True:
-            response = input(
+            import builtins
+            response = builtins.input(
                 f"Enter download directory [default: {default_dir}], enter number for recent dirs,  \
                 or press Enter for default: ")
 
@@ -213,7 +214,8 @@ def resolve_file_conflict(filepath: str, action: Optional[str] = None) -> Tuple[
     if action == "ask":
         print(f"File already exists: {filepath}")
         while True:
-            choice = input("Choose action: [o]verwrite [r]ename [s]kip: ").lower()
+            import builtins
+            choice = builtins.input("Choose action: [o]verwrite [r]ename [s]kip: ").lower()
             if choice in ('o', 'overwrite'):
                 action = "overwrite"
                 break

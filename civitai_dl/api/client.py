@@ -196,7 +196,7 @@ class CivitaiAPI:
         except Timeout:
             if retry_count < self.max_retries:
                 wait_time = min(2 ** retry_count, 30)  # Exponential backoff
-                logger.warning(f"Request timed out, retrying in {wait_time}s... ({retry_count + 1}/{self.max_retries})")
+                logger.warning(f"Request timed out, retrying in {wait_time}s... ({retry_count+1}/{self.max_retries})")
                 time.sleep(wait_time)
                 return self._make_request(method, endpoint, params, data, json_data, headers, retry_count + 1)
             raise APIError(f"Request timed out after {self.max_retries} retries")
@@ -208,8 +208,7 @@ class CivitaiAPI:
             if status_code == 429:
                 if retry_count < self.max_retries:
                     retry_after = int(e.response.headers.get('Retry-After', 60))
-                    msg = f"Rate limited, retrying in {retry_after}s... ({retry_count + 1}/{self.max_retries})"
-                    logger.warning(msg)
+                    logger.warning(f"Rate limited, retrying in {retry_after}s... ({retry_count+1}/{self.max_retries})")
                     time.sleep(retry_after)
                     return self._make_request(method, endpoint, params, data, json_data, headers, retry_count + 1)
 
@@ -226,7 +225,7 @@ class CivitaiAPI:
         except RequestException as e:
             if retry_count < self.max_retries:
                 wait_time = min(2 ** retry_count, 30)
-                logger.warning(f"Request failed, retrying in {wait_time}s... ({retry_count + 1}/{self.max_retries})")
+                logger.warning(f"Request failed, retrying in {wait_time}s... ({retry_count+1}/{self.max_retries})")
                 time.sleep(wait_time)
                 return self._make_request(method, endpoint, params, data, json_data, headers, retry_count + 1)
             raise APIError(f"Request failed: {str(e)}")

@@ -8,6 +8,7 @@ import sys
 from urllib.parse import urlparse
 
 import requests
+from civitai_dl.core.constants import HTTP_PREFIX
 
 
 def detect_system_proxy():
@@ -35,8 +36,8 @@ def detect_system_proxy():
                     proxy_server, _ = winreg.QueryValueEx(key, "ProxyServer")
                     if proxy_server:
                         # 确保格式正确
-                        if not proxy_server.startswith("http://"):
-                            proxy_server = f"http://{proxy_server}"
+                        if not proxy_server.startswith(HTTP_PREFIX):
+                            proxy_server = f"{HTTP_PREFIX}{proxy_server}"
                         print(f"检测到Windows IE代理设置: {proxy_server}")
                         return proxy_server
         except Exception as e:
@@ -103,7 +104,7 @@ def test_proxy(proxy=None):
 
         # 使用代理连接测试网站
         print("测试连接到 api.ipify.org...")
-        response = requests.get("https://api.ipify.org", proxies=proxies, timeout=10, verify=False)
+        response = requests.get("https://api.ipify.org", proxies=proxies, timeout=10, verify=True)
         print(f"代理测试成功! 通过代理的公共IP地址: {response.text}")
 
         # 测试连接Civitai
@@ -112,7 +113,7 @@ def test_proxy(proxy=None):
             "https://civitai.com/api/v1/models?limit=1",
             proxies=proxies,
             timeout=15,
-            verify=False,
+            verify=True,
         )
         if civitai_response.status_code == 200:
             print(f"成功连接Civitai API! 状态码: {civitai_response.status_code}")
@@ -129,8 +130,8 @@ def test_proxy(proxy=None):
 
         # 如果是HTTP代理失败，尝试SOCKS代理
         try:
-            if "http://" in proxy:
-                socks_proxy = proxy.replace("http://", "socks5://")
+            if HTTP_PREFIX in proxy:
+                socks_proxy = proxy.replace(HTTP_PREFIX, "socks5://")
                 print(f"尝试将HTTP代理转换为SOCKS5代理: {socks_proxy}")
 
                 socks_proxies = {"http": socks_proxy, "https": socks_proxy}
@@ -138,7 +139,7 @@ def test_proxy(proxy=None):
                     "https://api.ipify.org",
                     proxies=socks_proxies,
                     timeout=10,
-                    verify=False,
+                    verify=True,
                 )
                 print(f"SOCKS5代理测试成功! 通过代理的公共IP地址: {response.text}")
                 return socks_proxy
@@ -170,7 +171,7 @@ def set_proxy(proxy_url):
         parsed = urlparse(proxy_url)
         if not parsed.scheme:
             # 如果没有协议，默认添加http://
-            proxy_url = f"http://{proxy_url}"
+            proxy_url = f"{HTTP_PREFIX}{proxy_url}"
             print(f"添加默认http://协议: {proxy_url}")
     except Exception as e:
         print(f"代理URL格式错误: {str(e)}")
