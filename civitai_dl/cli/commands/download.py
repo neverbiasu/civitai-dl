@@ -11,7 +11,6 @@ from civitai_dl.api import CivitaiAPI
 from civitai_dl.core.downloader import DownloadEngine
 from civitai_dl.utils.config import get_config
 from civitai_dl.utils.logger import get_logger
-from civitai_dl.utils.metadata import extract_image_metadata, save_metadata_to_json
 from civitai_dl.utils.path_template import apply_model_template
 
 logger = get_logger(__name__)
@@ -703,7 +702,6 @@ def download_single_image(downloader, image_url, image_path, image_info, model_i
 
         # 使用更简单的方法直接下载
         import requests
-        from tqdm import tqdm
 
         logger.info(f"开始下载图像: {image_path}")
 
@@ -721,7 +719,7 @@ def download_single_image(downloader, image_url, image_path, image_info, model_i
 
         # 保存元数据
         try:
-            from civitai_dl.utils.metadata import extract_image_metadata, save_metadata_to_json
+            from civitai_dl.utils.metadata import extract_image_metadata
 
             metadata = {
                 "id": image_info.get("id"),
