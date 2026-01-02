@@ -344,7 +344,7 @@ class CivitaiAPI:
 
     def get_model_version(self, version_id: int) -> Dict[str, Any]:
         """Get details for a specific model version.
-        
+
         This is an alias for get_version for backward compatibility.
 
         Args:

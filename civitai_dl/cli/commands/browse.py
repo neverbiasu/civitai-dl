@@ -39,19 +39,19 @@ def browse() -> None:
 @click.option("--sort", help="排序方式 (最新, 下载数, 点赞数等)")
 @click.option("--limit", "-l", type=int, default=20, help="结果数量限制")
 @click.option("--nsfw", is_flag=True, help="包含NSFW内容")
-@click.option("--format", "-f", type=click.Choice(["table", "json"]), default="table", help="输出格式")
+@click.option("--format", "-f", "output_format", type=click.Choice(["table", "json"]), default="table", help="输出格式")
 @click.option("--creator", "-c", help="创作者用户名")
 @click.option("--base-model", "-b", help="基础模型")
-@click.option("--filter", help="高级筛选条件 (JSON格式)")
+@click.option("--filter", "filter_json", help="高级筛选条件 (JSON格式)")
 @click.option("--template", help="使用筛选模板")
-def browse_models(query, types, tag, sort, limit, nsfw, format, creator, base_model, filter, template):
+def browse_models(query, types, tag, sort, limit, nsfw, output_format, creator, base_model, filter_json, template):
     """浏览和搜索模型"""
     try:
         # 获取配置
         config = get_config()
 
         # 创建API客户端
-        api = CivitaiAPI(
+        api_client = CivitaiAPI(
             api_key=config.get("api_key"),
             proxy=config.get("proxy"),
             verify=config.get("verify_ssl", True),
@@ -60,7 +60,7 @@ def browse_models(query, types, tag, sort, limit, nsfw, format, creator, base_mo
         )
 
         # 使用筛选条件管理器
-        filter_manager = FilterManager()
+        mgr = FilterManager()
 
         # 确定筛选条件
         condition = determine_filter_condition(
@@ -72,9 +72,9 @@ def browse_models(query, types, tag, sort, limit, nsfw, format, creator, base_mo
             nsfw=nsfw,
             creator=creator,
             base_model=base_model,
-            filter_json=filter,
+            filter_json=filter_json,
             template_name=template,
-            filter_manager=filter_manager
+            filter_manager=mgr
         )
 
         # 使用FilterBuilder构建API参数
@@ -82,20 +82,18 @@ def browse_models(query, types, tag, sort, limit, nsfw, format, creator, base_mo
         params = filter_builder.build_params(condition)
 
         # 保存筛选历史
-        filter_manager.add_to_history(condition)
+        mgr.add_to_history(condition)
 
         # 获取模型列表
-        results = api.get_models(**params)
+        results = api_client.get_models(**params)
 
         # 处理结果
-        display_model_results(results, format)
+        display_model_results(results, output_format)
 
     except Exception as e:
         click.secho(f"浏览模型时出错: {str(e)}", fg="red")
         logger.exception("浏览模型失败")
         sys.exit(1)
-
-# 这个函数用来确定最终的筛选条件
 
 
 def determine_filter_condition(
@@ -115,103 +113,129 @@ def determine_filter_condition(
 
     # 如果提供了模板名称，使用模板
     if template_name and filter_manager:
-        template = filter_manager.get_template(template_name)
-        if template:
-            # 添加限制参数（如果模板中没有指定）
-            if limit and "limit" not in json.dumps(template):
-                # 深拷贝模板以避免修改原始模板
-                import copy
-                condition = copy.deepcopy(template)
-                if "and" in condition:
-                    condition["and"].append({"field": "limit", "op": "eq", "value": limit})
-                else:
-                    condition = {
-                        "and": [
-                            condition,
-                            {"field": "limit", "op": "eq", "value": limit}
-                        ]
-                    }
-                return condition
-            return template
-        else:
-            click.echo(f"未找到模板: {template_name}")
+        condition = _get_template_condition(template_name, filter_manager, limit)
+        if condition:
+            return condition
 
     # 如果提供了高级筛选条件，解析并使用
     if filter_json:
-        try:
-            condition = parse_filter_condition(filter_json)
-
-            # 添加限制参数（如果没有指定）
-            if limit and "limit" not in filter_json:
-                if "and" in condition:
-                    condition["and"].append({"field": "limit", "op": "eq", "value": limit})
-                else:
-                    condition = {
-                        "and": [
-                            condition,
-                            {"field": "limit", "op": "eq", "value": limit}
-                        ]
-                    }
-
+        condition = _get_json_condition(filter_json, limit)
+        if condition:
             return condition
-        except Exception as e:
-            logger.error(f"解析筛选条件失败: {e}")
-            click.echo(f"解析筛选条件失败: {e}")
 
     # 使用基本参数构建条件
+    return _build_basic_condition(query, types, tag, sort, limit, nsfw, creator, base_model)
+
+
+def _get_template_condition(
+    template_name: str, filter_manager: FilterManager, limit: Optional[int]
+) -> Optional[Dict[str, Any]]:
+    """获取模板条件"""
+    template = filter_manager.get_template(template_name)
+    if not template:
+        click.echo(f"未找到模板: {template_name}")
+        return None
+
+    # 添加限制参数（如果模板中没有指定）
+    if limit and "limit" not in json.dumps(template):
+        import copy
+        condition = copy.deepcopy(template)
+        _add_limit_to_condition(condition, limit)
+        return condition
+    return template
+
+
+def _get_json_condition(filter_json: str, limit: Optional[int]) -> Optional[Dict[str, Any]]:
+    """获取JSON条件"""
+    try:
+        condition = parse_filter_condition(filter_json)
+        if limit and "limit" not in filter_json:
+            _add_limit_to_condition(condition, limit)
+        return condition
+    except Exception as e:
+        logger.error(f"解析筛选条件失败: {e}")
+        click.echo(f"解析筛选条件失败: {e}")
+        return None
+
+
+def _add_limit_to_condition(condition: Dict[str, Any], limit: int) -> None:
+    """向条件添加limit"""
+    limit_condition = {"field": "limit", "op": "eq", "value": limit}
+
+    # If already an AND condition, just append the limit.
+    if "and" in condition:
+        and_clause = condition.get("and")
+        if isinstance(and_clause, list):
+            and_clause.append(limit_condition)
+        else:
+            # Defensive: avoid corrupting unexpected structures.
+            logger.warning("无法向条件添加limit: 'and' 子句不是列表，跳过自动limit。")
+        return
+
+    # For simple conditions (only field/op/value), safely transform to AND condition.
+    simple_keys = {"field", "op", "value"}
+    condition_keys = set(condition.keys())
+    if condition_keys == simple_keys:
+        original_condition = condition.copy()
+        condition.clear()
+        condition["and"] = [
+            original_condition,
+            limit_condition,
+        ]
+        return
+
+    # Defensive fallback: condition shape is more complex than expected.
+    # Do not attempt to restructure it to avoid losing or misplacing data.
+    logger.warning("检测到复杂筛选条件结构，跳过自动添加limit。")
+
+
+def _build_basic_condition(query, types, tag, sort, limit, nsfw, creator, base_model) -> Dict[str, Any]:
+    """构建基本条件"""
     condition = {"and": []}
 
     if query:
         condition["and"].append({"field": "query", "op": "eq", "value": query})
-
     if types:
-        # 支持多类型
         condition["and"].append({"field": "types", "op": "eq", "value": list(types)})
-
     if tag:
         condition["and"].append({"field": "tag", "op": "eq", "value": tag})
-
     if sort:
         condition["and"].append({"field": "sort", "op": "eq", "value": sort})
-
     if limit:
         condition["and"].append({"field": "limit", "op": "eq", "value": limit})
-
     if nsfw:
         condition["and"].append({"field": "nsfw", "op": "eq", "value": nsfw})
-
     if creator:
         condition["and"].append({"field": "username", "op": "eq", "value": creator})
-
     if base_model:
         condition["and"].append({"field": "baseModel", "op": "eq", "value": base_model})
 
     # 如果没有任何条件，返回空查询
     if not condition["and"]:
-        condition = {"field": "query", "op": "eq", "value": ""}
+        return {"field": "query", "op": "eq", "value": ""}
 
     return condition
 
 
 @browse.command("templates")
-@click.option("--list", "-l", is_flag=True, help="列出所有模板")
+@click.option("--list", "-l", "list_templates_flag", is_flag=True, help="列出所有模板")
 @click.option("--add", "-a", help="添加新模板 (需要同时指定--filter)")
-@click.option("--filter", "-f", help="模板筛选条件 (JSON格式)")
+@click.option("--filter", "-f", "filter_json", help="模板筛选条件 (JSON格式)")
 @click.option("--remove", "-r", help="删除模板")
 @click.option("--show", "-s", help="显示模板内容")
 def browse_templates(
-        list: bool,
+        list_templates_flag: bool,
         add: Optional[str],
-        filter: Optional[str],
+        filter_json: Optional[str],
         remove: Optional[str],
         show: Optional[str]) -> None:
     """管理筛选模板"""
     # 如果没有指定任何操作，默认列出所有模板
-    if not any([list, add, remove, show]):
-        list = True
+    if not any([list_templates_flag, add, remove, show]):
+        list_templates_flag = True
 
     # 列出所有模板
-    if list:
+    if list_templates_flag:
         templates = filter_manager.list_templates()
         if not templates:
             click.echo("没有保存的筛选模板")
@@ -223,12 +247,12 @@ def browse_templates(
 
     # 添加新模板
     if add:
-        if not filter:
+        if not filter_json:
             click.echo("错误: 添加模板时必须指定 --filter 参数", err=True)
             return
 
         try:
-            condition = json.loads(filter)
+            condition = json.loads(filter_json)
             if filter_manager.add_template(add, condition):
                 click.echo(f"模板 '{add}' 添加成功")
             else:
@@ -493,7 +517,7 @@ def display_model_results(results: Dict[str, Any], format_type: str) -> None:
 @click.argument("query", required=False)
 @click.option("--limit", type=int, default=10, help="结果数量限制")
 @click.option("--page", type=int, default=1, help="页码")
-@click.option("--type", help="模型类型 (Checkpoint, LORA, etc.)")
+@click.option("--type", "model_type", help="模型类型 (Checkpoint, LORA, etc.)")
 @click.option("--sort", help="排序方式 (Highest Rated, Most Downloaded, Newest)")
 @click.option("--period", help="时间范围 (Day, Week, Month, Year, AllTime)")
 @click.option("--nsfw/--no-nsfw", default=None, help="是否包含NSFW内容")
@@ -503,7 +527,7 @@ def search_models(
     query: Optional[str],
     limit: int,
     page: int,
-    type: Optional[str],
+    model_type: Optional[str],
     sort: Optional[str],
     period: Optional[str],
     nsfw: Optional[bool],
@@ -513,7 +537,7 @@ def search_models(
     """搜索Civitai上的模型"""
     try:
         config = get_config()
-        api = CivitaiAPI(
+        api_client = CivitaiAPI(
             api_key=config.get("api_key"),
             proxy=config.get("proxy"),
             verify=config.get("verify_ssl", True),
@@ -525,7 +549,7 @@ def search_models(
             "limit": limit,
             "page": page,
             "query": query,
-            "type": type,  # 修改这里，从"types"改为"type"
+            "type": model_type,
             "sort": sort,
             "period": period,
             "nsfw": nsfw,
@@ -535,8 +559,8 @@ def search_models(
         # 移除空值参数
         params = {k: v for k, v in params.items() if v is not None}
 
-        click.echo(f"正在搜索模型 (查询: {query or '无'}, 类型: {type or '所有'}, 限制: {limit})...")
-        results = api.get_models(**params)
+        click.echo(f"正在搜索模型 (查询: {query or '无'}, 类型: {model_type or '所有'}, 限制: {limit})...")
+        results = api_client.get_models(**params)
 
         models = results.get("items", [])
         metadata = results.get("metadata", {})
@@ -544,7 +568,6 @@ def search_models(
         if models:
             click.echo("-" * 110)
             click.echo(
-                # Ensure this line uses standard string formatting
                 "{:<10} {:<40} {:<15} {:<20} {:<10} {:<5}".format(
                     "ID", "名称", "类型", "创作者", "下载量", "评分"
                 )
@@ -553,12 +576,12 @@ def search_models(
             for model in models:
                 model_id = model.get("id", "N/A")
                 model_name = model.get("name", "N/A")
-                model_type = model.get("type", "N/A")
+                model_type_str = model.get("type", "N/A")
                 creator = model.get("creator", {}).get("username", "N/A")
                 downloads = model.get("stats", {}).get("downloadCount", 0)
                 rating = model.get("stats", {}).get("rating", 0)
                 click.echo(
-                    f"{model_id:<10} {model_name:<40} {model_type:<15} {creator:<20} {downloads:<10} {rating:<5.1f}"
+                    f"{model_id:<10} {model_name:<40} {model_type_str:<15} {creator:<20} {downloads:<10} {rating:<5.1f}"
                 )
             click.echo("-" * 110)
             click.echo(

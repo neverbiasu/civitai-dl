@@ -12,6 +12,7 @@ import unicodedata
 from typing import Any, Dict, Optional
 
 from civitai_dl.utils.logger import get_logger
+from civitai_dl.core.constants import INVALID_FILENAME_CHARS
 
 logger = get_logger(__name__)
 
@@ -64,8 +65,7 @@ def sanitize_path(path: str) -> str:
     path = unicodedata.normalize("NFKD", path)
 
     # Replace characters not supported in Windows filenames
-    invalid_chars = r'[<>:"/\\|?*]'
-    path = re.sub(invalid_chars, "_", path)
+    path = re.sub(INVALID_FILENAME_CHARS, "_", path)
 
     # Replace consecutive separators
     path = re.sub(r"_{2,}", "_", path)

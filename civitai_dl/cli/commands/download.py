@@ -11,7 +11,6 @@ from civitai_dl.api import CivitaiAPI
 from civitai_dl.core.downloader import DownloadEngine
 from civitai_dl.utils.config import get_config
 from civitai_dl.utils.logger import get_logger
-from civitai_dl.utils.metadata import extract_image_metadata, save_metadata_to_json
 from civitai_dl.utils.path_template import apply_model_template
 
 logger = get_logger(__name__)
@@ -628,9 +627,9 @@ def download_images(
             output_dir = os.path.abspath(output_dir)
         else:
             output_dir = os.path.abspath(downloader.output_dir)
-            
+
         model_images_dir = os.path.join(output_dir, folder_name)
-        
+
         # 确保目录存在
         try:
             os.makedirs(model_images_dir, exist_ok=True)
@@ -666,10 +665,10 @@ def download_images(
                 # 构建文件名 (简化文件名，避免过长)
                 image_id = image.get("id", f"img_{i+1}")
                 filename = f"{model_id}_{i+1}_{image_id}.jpg"
-                
+
                 # 构建完整的图像路径
                 image_path = os.path.join(model_images_dir, filename)
-                
+
                 # 跳过已存在的文件
                 if os.path.exists(image_path) and os.path.getsize(image_path) > 0:
                     logger.info(f"文件已存在，跳过下载: {image_path}")
@@ -681,7 +680,7 @@ def download_images(
                 success = download_single_image(downloader, image_url, image_path, image, model_id, version_id)
                 if success:
                     total_downloaded += 1
-                
+
                 bar.update(1)
 
         # 汇报下载结果
@@ -700,29 +699,28 @@ def download_single_image(downloader, image_url, image_path, image_info, model_i
     try:
         # 确保目录存在
         os.makedirs(os.path.dirname(image_path), exist_ok=True)
-        
+
         # 使用更简单的方法直接下载
         import requests
-        from tqdm import tqdm
-        
+
         logger.info(f"开始下载图像: {image_path}")
-        
+
         # 使用requests直接下载
         with requests.get(image_url, stream=True, timeout=30) as r:
             r.raise_for_status()
             with open(image_path, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=8192):
                     f.write(chunk)
-        
+
         # 验证文件是否存在
         if not os.path.exists(image_path) or os.path.getsize(image_path) == 0:
             logger.error(f"下载后文件不存在或为空: {image_path}")
             return False
-            
+
         # 保存元数据
         try:
-            from civitai_dl.utils.metadata import extract_image_metadata, save_metadata_to_json
-            
+            from civitai_dl.utils.metadata import extract_image_metadata
+
             metadata = {
                 "id": image_info.get("id"),
                 "model_id": model_id,
@@ -734,7 +732,7 @@ def download_single_image(downloader, image_url, image_path, image_info, model_i
                 "meta": image_info.get("meta"),
                 "url": image_url
             }
-            
+
             # 尝试提取图像元数据
             try:
                 extracted = extract_image_metadata(image_path)
@@ -742,28 +740,28 @@ def download_single_image(downloader, image_url, image_path, image_info, model_i
                     metadata.update(extracted)
             except Exception as e:
                 logger.warning(f"提取图像元数据失败: {str(e)}")
-            
+
             # 保存元数据
             metadata_path = os.path.splitext(image_path)[0] + ".meta.json"
             with open(metadata_path, "w", encoding="utf-8") as f:
                 import json
                 json.dump(metadata, f, indent=2, ensure_ascii=False)
-                
+
         except Exception as e:
             logger.warning(f"保存元数据失败: {str(e)}")
             # 不影响下载成功的结果
-            
+
         logger.info(f"图像下载成功: {image_path}")
         return True
-        
+
     except Exception as e:
         logger.error(f"下载图像出错: {str(e)}")
         # 如果文件下载了一部分，删除它
         if os.path.exists(image_path):
             try:
                 os.remove(image_path)
-            except:
-                pass
+            except Exception as cleanup_error:
+                logger.warning(f"删除部分下载文件失败 {image_path}: {cleanup_error}")
         return False
 
 
