@@ -158,16 +158,33 @@ def _get_json_condition(filter_json: str, limit: Optional[int]) -> Optional[Dict
 
 def _add_limit_to_condition(condition: Dict[str, Any], limit: int) -> None:
     """向条件添加limit"""
+    limit_condition = {"field": "limit", "op": "eq", "value": limit}
+
+    # If already an AND condition, just append the limit.
     if "and" in condition:
-        condition["and"].append({"field": "limit", "op": "eq", "value": limit})
-    else:
-        # Transform simple condition to AND condition
+        and_clause = condition.get("and")
+        if isinstance(and_clause, list):
+            and_clause.append(limit_condition)
+        else:
+            # Defensive: avoid corrupting unexpected structures.
+            logger.warning("无法向条件添加limit: 'and' 子句不是列表，跳过自动limit。")
+        return
+
+    # For simple conditions (only field/op/value), safely transform to AND condition.
+    simple_keys = {"field", "op", "value"}
+    condition_keys = set(condition.keys())
+    if condition_keys == simple_keys:
         original_condition = condition.copy()
         condition.clear()
         condition["and"] = [
             original_condition,
-            {"field": "limit", "op": "eq", "value": limit}
+            limit_condition,
         ]
+        return
+
+    # Defensive fallback: condition shape is more complex than expected.
+    # Do not attempt to restructure it to avoid losing or misplacing data.
+    logger.warning("检测到复杂筛选条件结构，跳过自动添加limit。")
 
 
 def _build_basic_condition(query, types, tag, sort, limit, nsfw, creator, base_model) -> Dict[str, Any]:

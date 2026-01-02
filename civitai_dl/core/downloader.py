@@ -257,6 +257,11 @@ class DownloadTask:
 
                     if self.total_size is None or existing_size < self.total_size:
                         mode = "ab"
+                        # Avoid mutating a potentially shared headers dict by copying/initializing it
+                        if self.headers is None:
+                            self.headers = {}
+                        else:
+                            self.headers = dict(self.headers)
                         self.headers["Range"] = f"bytes={existing_size}-"
                         self.downloaded_size = existing_size
                         logger.info(f"使用断点续传, 已下载: {existing_size} 字节")
@@ -329,10 +334,7 @@ class DownloadTask:
                         current_time = time.time()
                         elapsed = current_time - last_update_time
                         if elapsed >= 0.5:
-                            if elapsed > 0:
-                                self.speed = bytes_since_last_update / elapsed
-                            else:
-                                self.speed = 0
+                            self.speed = bytes_since_last_update / elapsed
                             if self._progress_callback:
                                 try:
                                     self._progress_callback(self.downloaded_size, self.total_size)
@@ -383,7 +385,7 @@ class DownloadTask:
             self.use_range = False
             self.downloaded_size = 0
             self.total_size = None
-            self._download()
+            return self._download()
         else:
             raise http_err
 
