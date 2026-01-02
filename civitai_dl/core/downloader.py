@@ -18,7 +18,7 @@ from typing import Callable, List, Optional, Dict, TypeVar
 import requests
 
 from civitai_dl.utils.logger import get_logger
-from civitai_dl.core.constants import INVALID_FILENAME_CHARS
+from civitai_dl.core.constants import INVALID_FILENAME_CHARS, NON_QUOTE_CHARS
 
 logger = get_logger(__name__)
 
@@ -413,8 +413,7 @@ class DownloadTask:
             except requests.HTTPError as http_err:
                 if http_err.response is not None and http_err.response.status_code == 416:
                     self._handle_416_error(http_err, proxies)
-                    if self.status == "completed":
-                        return
+                    if self.status == "completed": return
                 else:
                     raise http_err
 

@@ -11,6 +11,7 @@ from civitai_dl.api import CivitaiAPI
 from civitai_dl.core.downloader import DownloadEngine
 from civitai_dl.utils.config import get_config
 from civitai_dl.utils.logger import get_logger
+from civitai_dl.utils.metadata import extract_image_metadata, save_metadata_to_json
 from civitai_dl.utils.path_template import apply_model_template
 
 logger = get_logger(__name__)
@@ -658,13 +659,13 @@ def download_images(
                 # 获取图像URL
                 image_url = image.get("url")
                 if not image_url:
-                    logger.warning(f"图像 {i + 1} 没有URL，跳过")
+                    logger.warning(f"图像 {i+1} 没有URL，跳过")
                     bar.update(1)
                     continue
 
                 # 构建文件名 (简化文件名，避免过长)
-                image_id = image.get("id", f"img_{i + 1}")
-                filename = f"{model_id}_{i + 1}_{image_id}.jpg"
+                image_id = image.get("id", f"img_{i+1}")
+                filename = f"{model_id}_{i+1}_{image_id}.jpg"
 
                 # 构建完整的图像路径
                 image_path = os.path.join(model_images_dir, filename)
@@ -702,6 +703,7 @@ def download_single_image(downloader, image_url, image_path, image_info, model_i
 
         # 使用更简单的方法直接下载
         import requests
+        from tqdm import tqdm
 
         logger.info(f"开始下载图像: {image_path}")
 
@@ -719,7 +721,7 @@ def download_single_image(downloader, image_url, image_path, image_info, model_i
 
         # 保存元数据
         try:
-            from civitai_dl.utils.metadata import extract_image_metadata
+            from civitai_dl.utils.metadata import extract_image_metadata, save_metadata_to_json
 
             metadata = {
                 "id": image_info.get("id"),
@@ -770,8 +772,8 @@ def format_size(size_bytes):
     if size_bytes < 1024:
         return f"{size_bytes} B"
     elif size_bytes < 1024 * 1024:
-        return f"{size_bytes / 1024:.1f} KB"
+        return f"{size_bytes/1024:.1f} KB"
     elif size_bytes < 1024 * 1024 * 1024:
-        return f"{size_bytes / (1024 * 1024):.1f} MB"
+        return f"{size_bytes/(1024*1024):.1f} MB"
     else:
-        return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
+        return f"{size_bytes/(1024*1024*1024):.1f} GB"

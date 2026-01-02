@@ -160,7 +160,7 @@ class TestDownloadEngine:
         while task.status == "running":
             if task.total_size and task.downloaded_size:
                 progress = (task.downloaded_size / task.total_size) * 100
-                print(f"下载进度: {progress:.1f}%, 速度: {task.speed / 1024 / 1024:.2f} MB/s", end="\r")
+                print(f"下载进度: {progress:.1f}%, 速度: {task.speed/1024/1024:.2f} MB/s", end="\r")
             time.sleep(0.5)
 
         print("\n下载完成！")

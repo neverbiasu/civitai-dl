@@ -127,9 +127,7 @@ def determine_filter_condition(
     return _build_basic_condition(query, types, tag, sort, limit, nsfw, creator, base_model)
 
 
-def _get_template_condition(
-    template_name: str, filter_manager: FilterManager, limit: Optional[int]
-) -> Optional[Dict[str, Any]]:
+def _get_template_condition(template_name: str, filter_manager: FilterManager, limit: Optional[int]) -> Optional[Dict[str, Any]]:
     """获取模板条件"""
     template = filter_manager.get_template(template_name)
     if not template:
@@ -294,7 +292,7 @@ def browse_history(limit: int, clear: bool) -> None:
 
     click.echo("最近的筛选历史:")
     for i, record in enumerate(history[:limit]):
-        click.echo(f"{i + 1}. [{record['timestamp']}]\n   {json.dumps(record['condition'], indent=2)}")
+        click.echo(f"{i+1}. [{record['timestamp']}]\n   {json.dumps(record['condition'], indent=2)}")
         if i < len(history) - 1:
             click.echo("")
 
