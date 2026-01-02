@@ -11,7 +11,11 @@ from civitai_dl.api.client import CivitaiAPI
 from civitai_dl.core.downloader import DownloadEngine
 from civitai_dl.core.filter import FilterParser, apply_filter
 from civitai_dl.utils.config import set_config_value
+from civitai_dl.utils.logger import get_logger
 from civitai_dl.webui.components.image_browser import ImageDownloader
+
+logger = get_logger(__name__)
+
 
 def setup_callbacks(
     api: CivitaiAPI,
@@ -58,7 +62,7 @@ def setup_callbacks(
             download_url = api.get_download_url(target_version.get("id"))
 
             if not download_url:
-                return f"错误: 无法获取下载链接", 0
+                return "错误: 无法获取下载链接", 0
 
             if not output_dir:
                 output_dir = config.get("output_dir", "./downloads")
@@ -120,7 +124,7 @@ def setup_callbacks(
                 if not image_url:
                     continue
 
-                filename = f"{model_id}_{i+1}_{os.path.basename(image_url)}"
+                filename = f"{model_id}_{i + 1}_{os.path.basename(image_url)}"
                 if not os.path.splitext(filename)[1]:
                     filename += ".jpg"
 
@@ -164,14 +168,14 @@ def setup_callbacks(
                                     json.dump(
                                         metadata, f, indent=2, ensure_ascii=False
                                     )
-                        except Exception:
-                            pass
+                        except Exception as metadata_err:
+                            logger.debug(f"保存元数据失败: {metadata_err}")
 
-                except Exception:
-                    pass
+                except Exception as image_err:
+                    logger.debug(f"图像处理失败: {image_err}")
 
-        except Exception:
-            pass
+        except Exception as download_err:
+            logger.warning(f"图像下载线程异常: {download_err}")
 
     def on_image_search(model_id: int, version_id: Optional[int],
                         nsfw_filter: str, gallery: bool, limit: int) -> Tuple[List[str], Dict[str, Any]]:

@@ -103,6 +103,8 @@ class FilterParser:
 
     @staticmethod
     def _parse_op(op_str: str) -> str:
+        if not op_str:
+            return "eq"
         if op_str == '>':
             return "gt"
         elif op_str == '>=':
@@ -381,8 +383,7 @@ DEFAULT_TEMPLATES = {
 
 
 class FilterBuilder:
-    def __init__(self):
-        pass
+    """Builder class for constructing filter parameters from conditions."""
 
     def build_params(self, condition: Dict[str, Any]) -> Dict[str, Any]:
         return FilterParser.to_api_params(condition)

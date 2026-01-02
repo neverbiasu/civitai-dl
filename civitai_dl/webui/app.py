@@ -1,9 +1,7 @@
 """Web UI application for Civitai Downloader."""
 
 import os
-import time
-from threading import Thread
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 import gradio as gr
 
@@ -146,13 +144,17 @@ def create_app() -> gr.Blocks:
 
                 # Advanced filter components
                 filter_builder = FilterBuilder()
-                filter_accordion, current_filter, apply_filter_btn, save_template_btn, load_template_btn = filter_builder.create_ui()
+                (filter_accordion, current_filter, apply_filter_btn,
+                 save_template_btn, load_template_btn) = filter_builder.create_ui()
 
                 filter_builder.setup_callbacks(
-                    (filter_accordion, current_filter, apply_filter_btn, save_template_btn, load_template_btn),
+                    (filter_accordion, current_filter, apply_filter_btn,
+                     save_template_btn, load_template_btn),
                     api,
                     on_preview=callbacks["on_preview_filter"],
-                    on_apply=lambda filter_condition: callbacks["update_results"](callbacks["on_apply_filter"](filter_condition))
+                    on_apply=lambda filter_condition: callbacks["update_results"](
+                        callbacks["on_apply_filter"](filter_condition)
+                    )
                 )
 
                 search_btn.click(
@@ -280,7 +282,9 @@ def create_app() -> gr.Blocks:
         # Footer information
         with gr.Row():
             gr.Markdown(
-                "Civitai Downloader | [项目地址](https://github.com/neverbiasu/civitai-dl) | [问题反馈](https://github.com/neverbiasu/civitai-dl/issues)"
+                "Civitai Downloader | "
+                "[项目地址](https://github.com/neverbiasu/civitai-dl) | "
+                "[问题反馈](https://github.com/neverbiasu/civitai-dl/issues)"
             )
 
         # Connect event handlers
@@ -336,23 +340,15 @@ def create_app() -> gr.Blocks:
         )
 
         def update_progress() -> None:
-            """Periodically update download progress."""
-            while True:
-                # Sleep for 1 second
-                time.sleep(1)
+            """Deprecated: background progress updates are now handled by callbacks.
 
-                # Get the first active download task
-                active_task = None
-                for task_id, task in download_tasks.items():
-                    if task.status == "downloading":
-                        active_task = task
-                        break
+            This function is kept for backward compatibility but intentionally
+            performs no work and does not start any background thread.
+            """
+            logger.debug("update_progress() called; background progress thread is deprecated.")
 
-                if active_task:
-                    pass
-
-        # Start progress update thread
-        Thread(target=update_progress, daemon=True).start()
+        # Note: Background progress thread is deprecated and no longer started
+        # Progress updates are now handled via callbacks
 
     return app
 

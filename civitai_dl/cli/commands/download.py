@@ -760,8 +760,8 @@ def download_single_image(downloader, image_url, image_path, image_info, model_i
         if os.path.exists(image_path):
             try:
                 os.remove(image_path)
-            except Exception:
-                pass
+            except Exception as cleanup_error:
+                logger.warning(f"删除部分下载文件失败 {image_path}: {cleanup_error}")
         return False
 
 
