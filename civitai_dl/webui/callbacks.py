@@ -29,16 +29,16 @@ def setup_callbacks(
     def on_download(model_id: int, version_id: Optional[int], output_dir: str,
                     with_images: bool, image_limit: int) -> Tuple[str, float]:
         if not model_id:
-            return "请输入有效的模型ID", 0
+            return "Please enter a valid Model ID", 0
 
         try:
             model_info = api.get_model(model_id)
             if not model_info:
-                return f"错误: 未找到ID为{model_id}的模型", 0
+                return f"Error: Model with ID {model_id} not found", 0
 
             versions = model_info.get("modelVersions", [])
             if not versions:
-                return f"错误: 模型 {model_info.get('name')} 没有可用版本", 0
+                return f"Error: Model {model_info.get('name')} has no available versions", 0
 
             target_version = None
             if version_id:
@@ -47,13 +47,13 @@ def setup_callbacks(
                         target_version = v
                         break
                 if not target_version:
-                    return f"错误: 未找到ID为{version_id}的版本", 0
+                    return f"Error: Version with ID {version_id} not found", 0
             else:
                 target_version = versions[0]
 
             files = target_version.get("files", [])
             if not files:
-                return f"错误: 版本 {target_version.get('name')} 没有可用文件", 0
+                return f"Error: Version {target_version.get('name')} has no available files", 0
 
             target_file = next(
                 (f for f in files if f.get("primary", False)), files[0]
@@ -62,7 +62,7 @@ def setup_callbacks(
             download_url = api.get_download_url(target_version.get("id"))
 
             if not download_url:
-                return "错误: 无法获取下载链接", 0
+                return "Error: Unable to get download link", 0
 
             if not output_dir:
                 output_dir = config.get("output_dir", "./downloads")
@@ -94,12 +94,12 @@ def setup_callbacks(
                 ).start()
 
             return (
-                f"开始下载: {model_info.get('name')} - {target_version.get('name')}",
+                f"Start downloading: {model_info.get('name')} - {target_version.get('name')}",
                 0,
             )
 
         except Exception as e:
-            return f"下载出错: {str(e)}", 0
+            return f"Download error: {str(e)}", 0
 
     def download_model_images(
         api: CivitaiAPI,
@@ -169,18 +169,18 @@ def setup_callbacks(
                                         metadata, f, indent=2, ensure_ascii=False
                                     )
                         except Exception as metadata_err:
-                            logger.debug(f"保存元数据失败: {metadata_err}")
+                            logger.debug(f"Failed to save metadata: {metadata_err}")
 
                 except Exception as image_err:
-                    logger.debug(f"图像处理失败: {image_err}")
+                    logger.debug(f"Image processing failed: {image_err}")
 
         except Exception as download_err:
-            logger.warning(f"图像下载线程异常: {download_err}")
+            logger.warning(f"Image download thread exception: {download_err}")
 
     def on_image_search(model_id: int, version_id: Optional[int],
                         nsfw_filter: str, gallery: bool, limit: int) -> Tuple[List[str], Dict[str, Any]]:
         if not model_id:
-            return [], {"error": "请输入有效的模型ID"}
+            return [], {"error": "Please enter a valid Model ID"}
 
         try:
             gallery_images = image_downloader.search_images(
@@ -194,7 +194,7 @@ def setup_callbacks(
             if not gallery_images:
                 return [], {
                     "status": "warning",
-                    "message": "未找到符合条件的图像",
+                    "message": "No matching images found",
                     "params": {
                         "model_id": model_id,
                         "version_id": version_id,
@@ -206,23 +206,23 @@ def setup_callbacks(
 
             return gallery_images, {}
         except Exception as e:
-            return [], {"error": f"获取图像出错: {str(e)}"}
+            return [], {"error": f"Error getting images: {str(e)}"}
 
     def on_image_selected(evt: gr.SelectData, index: Optional[int] = None) -> Dict[str, Any]:
         try:
             selected_index = evt.index if hasattr(evt, "index") else index
             if selected_index is None:
-                return {"error": "未能获取选择的图像索引"}
+                return {"error": "Failed to get selected image index"}
 
             metadata = image_downloader.get_image_metadata(selected_index)
             return metadata
         except Exception as e:
-            return {"error": f"获取图像元数据失败: {str(e)}"}
+            return {"error": f"Failed to get image metadata: {str(e)}"}
 
     def on_download_images(model_id: int, version_id: Optional[int],
                            nsfw_filter: str, gallery: bool, limit: int) -> Dict[str, Any]:
         if not model_id:
-            return {"error": "请输入有效的模型ID"}
+            return {"error": "Please enter a valid Model ID"}
 
         try:
             result = image_downloader.download_images(
@@ -234,7 +234,7 @@ def setup_callbacks(
             )
             return {"status": "success", "message": result}
         except Exception as e:
-            return {"error": f"下载图像时出错: {str(e)}"}
+            return {"error": f"Error downloading images: {str(e)}"}
 
     def save_settings(
         api_key: str,
@@ -250,7 +250,7 @@ def setup_callbacks(
         verify_ssl: bool,
     ) -> str:
         try:
-            theme_value = "light" if theme == "亮色" else "dark"
+            theme_value = "light" if theme == "Light" else "dark"
 
             set_config_value("api_key", api_key)
             set_config_value("proxy", proxy)
@@ -273,10 +273,10 @@ def setup_callbacks(
             download_engine.output_dir = output_dir
             download_engine.concurrent_downloads = int(concurrent)
 
-            return "设置已保存"
+            return "Settings Saved"
 
         except Exception as e:
-            return f"保存设置失败: {str(e)}"
+            return f"Failed to save settings: {str(e)}"
 
     def on_preview_filter(filter_condition: Dict[str, Any]) -> str:
         try:
@@ -284,9 +284,9 @@ def setup_callbacks(
             api_params["limit"] = 1
             response = api.get_models(api_params)
             count = response.get("metadata", {}).get("totalItems", 0)
-            return f"符合条件的模型数量: {count}"
+            return f"Matching models: {count}"
         except Exception as e:
-            return f"预览失败: {str(e)}"
+            return f"Preview failed: {str(e)}"
 
     def on_apply_filter(filter_condition: Dict[str, Any]) -> List[List[Any]]:
         try:
@@ -308,7 +308,7 @@ def setup_callbacks(
             ]
             return table_data
         except Exception as e:
-            gr.Warning(f"搜索失败: {str(e)}")
+            gr.Warning(f"Search failed: {str(e)}")
             return []
 
     def on_search(query: str, types: List[str], sort: str, nsfw_enabled: bool) -> List[List[Any]]:
@@ -341,7 +341,7 @@ def setup_callbacks(
 
             return table_data
         except Exception as e:
-            gr.Warning(f"搜索失败: {str(e)}")
+            gr.Warning(f"Search failed: {str(e)}")
             return []
 
     def update_results(data: List[List[Any]]) -> List[List[Any]]:

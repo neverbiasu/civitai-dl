@@ -5,14 +5,14 @@ import pytest
 import requests
 
 """
-Pytest配置和全局fixtures
+Pytest configuration and global fixtures
 """
 
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_environment():
-    """设置测试环境变量和全局配置"""
-    # 尝试从.env文件加载环境变量
+    """Set up test environment variables and global configuration"""
+    # Try to load environment variables from .env file
     try:
         from civitai_dl.utils.env import load_env_file
 
@@ -20,30 +20,30 @@ def setup_environment():
     except ImportError:
         pass
 
-    # 如果存在测试API密钥，从环境变量中获取
+    # Get API key from environment variables if present
     os.environ.get("CIVITAI_API_KEY")
 
-    # 配置测试时使用的基本参数
+    # Configure basic parameters for testing
     os.environ["CIVITAI_TEST_MODE"] = "1"
 
-    # 确保测试不会意外触发大型下载
+    # Ensure tests do not accidentally trigger large downloads
     os.environ["CIVITAI_MAX_TEST_DOWNLOAD"] = "1048576"  # 1MB
 
     yield
 
-    # 清理临时环境变量
+    # Clean up temporary environment variables
     if "CIVITAI_TEST_MODE" in os.environ:
         del os.environ["CIVITAI_TEST_MODE"]
 
 
 @pytest.fixture
 def mock_successful_api_response():
-    """模拟成功的API响应"""
+    """Mock successful API response"""
     return {
         "items": [
             {
                 "id": 12345,
-                "name": "测试模型",
+                "name": "Test Model",
                 "type": "LORA",
                 "creator": {"username": "test_user"},
                 "stats": {"downloadCount": 100, "rating": 4.5},
@@ -55,14 +55,14 @@ def mock_successful_api_response():
 
 @pytest.fixture
 def temp_directory():
-    """提供临时目录用于测试文件下载"""
+    """Provide a temporary directory for file download tests"""
     with tempfile.TemporaryDirectory() as tmpdirname:
         yield tmpdirname
 
 
 @pytest.fixture
 def mock_api_response():
-    """模拟API响应数据"""
+    """Mock API response data"""
     return {
         "id": 12345,
         "name": "Test Model",
@@ -83,30 +83,30 @@ def mock_api_response():
 
 @pytest.fixture(autouse=True)
 def disable_proxy_for_tests():
-    """在测试中禁用代理设置，在CI环境中禁用代理"""
-    # 保存原始环境变量
+    """Disable proxy settings during tests, disable proxy in CI environment"""
+    # Save original environment variables
     original_proxy = os.environ.get("HTTP_PROXY")
     original_https_proxy = os.environ.get("HTTPS_PROXY")
     original_no_proxy = os.environ.get("NO_PROXY")
 
-    # 在CI环境中禁用代理
+    # Disable proxy in CI environment
     if "CI" in os.environ or "CI_TESTING" in os.environ:
         os.environ.pop("HTTP_PROXY", None)
         os.environ.pop("HTTPS_PROXY", None)
         os.environ["NO_PROXY"] = "*"
     else:
-        # 确保使用系统或用户配置的代理
+        # Ensure using system or user configured proxy
         civitai_proxy = os.environ.get("CIVITAI_PROXY")
         if civitai_proxy:
             os.environ["HTTP_PROXY"] = civitai_proxy
             os.environ["HTTPS_PROXY"] = civitai_proxy
-            print(f"CIVITAI_PROXY环境变量设置代理: {civitai_proxy}")
+            print(f"CIVITAI_PROXY environment variable set proxy: {civitai_proxy}")
         elif original_proxy or original_https_proxy:
-            print(f"使用系统代理 HTTP_PROXY={original_proxy}, HTTPS_PROXY={original_https_proxy}")
+            print(f"Using system proxy HTTP_PROXY={original_proxy}, HTTPS_PROXY={original_https_proxy}")
 
     yield
 
-    # 恢复环境
+    # Restore environment
     if original_proxy:
         os.environ["HTTP_PROXY"] = original_proxy
     else:
@@ -126,24 +126,24 @@ def disable_proxy_for_tests():
 @pytest.fixture
 def api_client():
     """
-    提供真实的API客户端实例，用于实际测试API连接情况。
+    Provide a real API client instance for actual API connection testing.
 
-    将使用环境变量中的API密钥和代理设置。
+    Will use API key and proxy settings from environment variables.
     """
     from civitai_dl.api.client import CivitaiAPI
 
-    # 获取API密钥
+    # Get API key
     api_key = os.environ.get("CIVITAI_API_KEY")
 
-    # 优先使用CIVITAI_PROXY，如果没有则尝试使用系统代理
+    # Prefer CIVITAI_PROXY, if not set, try using system proxy
     proxy = os.environ.get("CIVITAI_PROXY") or os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
 
     if api_key:
-        print(f"API客户端: 使用API密钥: {api_key[:4]}{'*' * (len(api_key) - 8)}{api_key[-4:] if len(api_key) > 8 else ''}")
+        print(f"API Client: Using API Key: {api_key[:4]}{'*' * (len(api_key) - 8)}{api_key[-4:] if len(api_key) > 8 else ''}")
 
     if proxy:
-        print(f"API客户端: 使用代理: {proxy}")
-        # 测试代理连接
+        print(f"API Client: Using Proxy: {proxy}")
+        # Test proxy connection
         try:
             test_response = requests.get(
                 "https://api.ipify.org",
@@ -151,13 +151,13 @@ def api_client():
                 timeout=10,
                 verify=False,
             )
-            print(f"代理连接测试: 成功! IP: {test_response.text}")
+            print(f"Proxy connection test: Success! IP: {test_response.text}")
         except Exception as e:
-            print(f"代理连接测试失败: {str(e)}")
-            # 如果代理测试失败，尝试不同的设置格式
+            print(f"Proxy connection test failed: {str(e)}")
+            # If proxy test fails, try different format
             if "http://" in proxy:
                 alt_proxy = proxy.replace("http://", "socks5://")
-                print(f"尝试替代代理格式: {alt_proxy}")
+                print(f"Trying alternative proxy format: {alt_proxy}")
                 try:
                     test_response = requests.get(
                         "https://api.ipify.org",
@@ -165,23 +165,23 @@ def api_client():
                         timeout=10,
                         verify=False,
                     )
-                    print(f"替代代理连接测试: 成功! IP: {test_response.text}")
-                    proxy = alt_proxy  # 如果成功，使用新格式
+                    print(f"Alternative proxy connection test: Success! IP: {test_response.text}")
+                    proxy = alt_proxy  # If successful, use new format
                 except Exception as e:
-                    print(f"替代代理连接测试也失败: {str(e)}")
+                    print(f"Alternative proxy connection test also failed: {str(e)}")
     else:
-        print("警告: 未设置代理，可能无法访问Civitai API。请设置CIVITAI_PROXY、HTTP_PROXY或HTTPS_PROXY环境变量。")
+        print("Warning: Proxy not set, may not be able to access Civitai API. Please set CIVITAI_PROXY, HTTP_PROXY or HTTPS_PROXY environment variables.")
 
-    # 创建API客户端实例
+    # Create API client instance
     client = CivitaiAPI(
         api_key=api_key,
         proxy=proxy,
-        verify=False,  # 禁用SSL验证以避免证书问题
-        timeout=30,  # 增加超时时间
+        verify=False,  # Disable SSL verification to avoid certificate issues
+        timeout=30,  # Increase timeout
     )
 
-    # 检查client中的代理设置
+    # Check proxy settings in client
     if hasattr(client, "session") and hasattr(client.session, "proxies"):
-        print(f"API客户端session代理设置: {client.session.proxies}")
+        print(f"API client session proxy settings: {client.session.proxies}")
 
     return client

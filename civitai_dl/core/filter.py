@@ -256,7 +256,7 @@ class FilterManager:
                 return templates
             return DEFAULT_TEMPLATES.copy()
         except Exception as e:
-            logger.error(f"加载筛选模板失败: {str(e)}")
+            logger.error(f"Failed to load filter templates: {str(e)}")
             return DEFAULT_TEMPLATES.copy()
 
     def _save_templates(self) -> bool:
@@ -266,7 +266,7 @@ class FilterManager:
                 json.dump(self.templates, f, indent=2, ensure_ascii=False)
             return True
         except Exception as e:
-            logger.error(f"保存筛选模板失败: {str(e)}")
+            logger.error(f"Failed to save filter templates: {str(e)}")
             return False
 
     def _load_history(self) -> List[Dict[str, Any]]:
@@ -277,7 +277,7 @@ class FilterManager:
                 return history
             return []
         except Exception as e:
-            logger.error(f"加载筛选历史记录失败: {str(e)}")
+            logger.error(f"Failed to load filter history: {str(e)}")
             return []
 
     def _save_history(self) -> bool:
@@ -287,7 +287,7 @@ class FilterManager:
                 json.dump(self.history, f, indent=2, ensure_ascii=False)
             return True
         except Exception as e:
-            logger.error(f"保存筛选历史记录失败: {str(e)}")
+            logger.error(f"Failed to save filter history: {str(e)}")
             return False
 
     def get_template(self, name: str) -> Optional[Dict[str, Any]]:
