@@ -231,24 +231,24 @@ class CivitaiAPI:
             raise APIError(f"Request failed: {str(e)}")
 
     def get_models(self, **params):
-        """获取模型列表
+        """Get list of models
 
         Args:
-            **params: API查询参数，例如:
-                limit: 结果数量限制 (int)
-                page: 页码 (int)
-                query: 搜索查询 (str)
-                types: 模型类型列表 (如 ["Checkpoint", "LORA"])
-                sort: 排序方式
-                period: 时间范围
-                nsfw: 是否包含NSFW内容
-                username: 创作者用户名
-                tag: 标签
+            **params: API query parameters, e.g.:
+                limit: Limit the number of results (int)
+                page: Page number (int)
+                query: Search query (str)
+                types: List of model types (e.g. ["Checkpoint", "LORA"])
+                sort: Sort order
+                period: Time range
+                nsfw: Whether to include NSFW content
+                username: Creator username
+                tag: Tag
 
         Returns:
-            API响应，包含模型列表和元数据
+            API response containing model list and metadata
         """
-        # 类型转换与清理
+        # Type conversion and cleanup
         api_params = {}
         for k, v in params.items():
             if v in (None, "", [], {}):
@@ -259,7 +259,7 @@ class CivitaiAPI:
                 except Exception:
                     continue
             elif k == "types":
-                # 支持字符串、列表、元组
+                # Support string, list, tuple
                 if isinstance(v, str):
                     api_params[k] = [v]
                 elif isinstance(v, (list, tuple)):
@@ -268,7 +268,7 @@ class CivitaiAPI:
                     continue
             else:
                 api_params[k] = v
-        logger.debug(f"获取模型列表，最终API参数: {api_params}")
+        logger.debug(f"Getting model list, final API params: {api_params}")
         return self._make_request("GET", "models", params=api_params)
 
     def get_model(self, model_id: int) -> Dict[str, Any]:
@@ -400,18 +400,18 @@ class CivitaiAPI:
             if not files:
                 return None
 
-            # 如果指定了file_id，尝试找到匹配的文件
+            # If file_id is specified, try to find the matching file
             if file_id:
                 target_file = next((f for f in files if f.get("id") == file_id), None)
             else:
-                # 否则选择主文件或第一个文件
+                # Otherwise select the primary file or the first file
                 target_file = next((f for f in files if f.get("primary", False)), files[0])
 
             if target_file:
                 if "downloadUrl" in target_file:
                     return target_file["downloadUrl"]
                 else:
-                    # 有些API响应不直接包含downloadUrl，需要额外请求
+                    # Some API responses do not directly include downloadUrl, request is needed
                     download_info = self._make_request(
                         "GET",
                         f"model-versions/{version_id}/download",
@@ -422,5 +422,5 @@ class CivitaiAPI:
             return None
 
         except Exception as e:
-            logger.error(f"获取下载链接失败: {str(e)}")
+            logger.error(f"Failed to get download link: {str(e)}")
             return None

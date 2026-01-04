@@ -25,10 +25,10 @@ class FilterBuilder:
     def __init__(self) -> None:
         """Initialize the filter builder with a filter manager."""
         self.filter_manager = FilterManager()
-        self.templates = self.filter_manager.get_all_templates()  # 使用正确的方法名
+        self.templates = self.filter_manager.get_all_templates()  # Use correct method name
         self.current_condition: Dict[str, Any] = {}
         self.temp_conditions: List[Dict[str, Any]] = []
-        # 存储UI组件的引用
+        # Store references to UI components
         self.components = {}
 
     def create_ui(self) -> Tuple[gr.Accordion, gr.JSON, gr.Button, gr.Button, gr.Button]:
@@ -42,7 +42,7 @@ class FilterBuilder:
             - save_template_btn: Button to save the current filter as a template
             - load_template_btn: Button to load a template
         """
-        with gr.Accordion("高级筛选", open=False) as filter_accordion:
+        with gr.Accordion("Advanced Filter", open=False) as filter_accordion:
             with gr.Row():
                 with gr.Column(scale=1):
                     # Field selection components
@@ -53,10 +53,10 @@ class FilterBuilder:
                             "stats.downloadCount", "stats.favoriteCount",
                             "publishedAt", "updatedAt"
                         ],
-                        label="字段",
+                        label="Field",
                         value="name"
                     )
-                    # 保存组件引用
+                    # Save component reference
                     self.components["field_dropdown"] = field_dropdown
 
                     operator_dropdown = gr.Dropdown(
@@ -67,71 +67,71 @@ class FilterBuilder:
                             "contains (contains)", "startswith (starts with)",
                             "endswith (ends with)", "regex (regex match)"
                         ],
-                        label="操作符",
+                        label="Operator",
                         value="contains (contains)"
                     )
                     self.components["operator_dropdown"] = operator_dropdown
 
-                    value_input = gr.Textbox(label="值")
+                    value_input = gr.Textbox(label="Value")
                     self.components["value_input"] = value_input
 
                     logic_radio = gr.Radio(
                         choices=["AND", "OR"],
-                        label="逻辑操作符",
+                        label="Logic Operator",
                         value="AND"
                     )
                     self.components["logic_radio"] = logic_radio
 
-                    add_condition_btn = gr.Button("添加条件")
+                    add_condition_btn = gr.Button("Add Condition")
                     self.components["add_condition_btn"] = add_condition_btn
 
                     # Template management
-                    template_name = gr.Textbox(label="模板名称")
+                    template_name = gr.Textbox(label="Template Name")
                     self.components["template_name"] = template_name
 
                     template_list = gr.Dropdown(
                         choices=list(self.templates.keys()),
-                        label="加载模板"
+                        label="Load Template"
                     )
                     self.components["template_list"] = template_list
 
                     with gr.Row():
-                        save_template_btn = gr.Button("保存模板")
+                        save_template_btn = gr.Button("Save Template")
                         self.components["save_template_btn"] = save_template_btn
 
-                        load_template_btn = gr.Button("加载模板")
+                        load_template_btn = gr.Button("Load Template")
                         self.components["load_template_btn"] = load_template_btn
 
                 with gr.Column(scale=1):
                     # Current filter display
                     current_filter = gr.JSON(
-                        label="当前筛选条件",
+                        label="Current Filter Conditions",
                         value={}
                     )
                     self.components["current_filter"] = current_filter
 
                     conditions_list = gr.Dataframe(
-                        headers=["字段", "操作符", "值"],
-                        label="当前条件",
+                        headers=["Field", "Operator", "Value"],
+                        label="Current Conditions",
                         interactive=False,
                         value=[]
                     )
                     self.components["conditions_list"] = conditions_list
 
                     preview_output = gr.Textbox(
-                        label="预览",
+                        label="Preview",
                         interactive=False
                     )
                     self.components["preview_output"] = preview_output
 
                     with gr.Row():
-                        clear_btn = gr.Button("清除筛选")
+                        clear_btn = gr.Button("Clear Filter")
                         self.components["clear_btn"] = clear_btn
 
-                        preview_btn = gr.Button("预览结果")
+                        preview_btn = gr.Button("Preview Results")
                         self.components["preview_btn"] = preview_btn
 
-                    apply_filter_btn = gr.Button("应用筛选", variant="primary")
+                    apply_filter_btn = gr.Button("Apply Filter", variant="primary")
                     self.components["apply_filter_btn"] = apply_filter_btn
 
         return filter_accordion, current_filter, apply_filter_btn, save_template_btn, load_template_btn
@@ -153,7 +153,7 @@ class FilterBuilder:
         """
         filter_accordion, current_filter, apply_filter_btn, save_template_btn, load_template_btn = components
 
-        # 使用保存的组件引用
+        # Use saved component references
         field_dropdown = self.components.get("field_dropdown")
         operator_dropdown = self.components.get("operator_dropdown")
         value_input = self.components.get("value_input")
@@ -333,4 +333,4 @@ class FilterBuilder:
                 )
         except Exception as e:
             logger.error(f"Failed to set up filter callbacks: {str(e)}")
-            logger.exception("详细错误信息")
+            logger.exception("Detailed error information")
