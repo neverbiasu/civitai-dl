@@ -96,7 +96,7 @@ class TestCivitaiAPI:
             except (requests.RequestException, APIError) as e:
                 last_exception = e
                 if attempt < max_retries - 1:
-                    print(f"Attempt {attempt + 1}/{max_retries} failed: {str(e)}")
+                    print(f"Attempt {attempt+1}/{max_retries} failed: {str(e)}")
                     time.sleep(retry_wait)
                 else:
                     raise pytest.fail(f"API request failed after {max_retries} attempts: {str(e)}") from last_exception

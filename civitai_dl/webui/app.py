@@ -132,8 +132,8 @@ def create_app() -> gr.Blocks:
 
                 # Search results action area
                 with gr.Row():
-                    gr.Button("Download Selected", interactive=False)
-                    gr.Button("Refresh", interactive=True)
+                    download_selected_btn = gr.Button("Download Selected", interactive=False)
+                    refresh_btn = gr.Button("Refresh", interactive=True)
 
                 # Help text
                 gr.Markdown(

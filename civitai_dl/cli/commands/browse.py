@@ -8,6 +8,7 @@ import json
 from typing import Dict, List, Any, Optional
 
 import click
+from tabulate import tabulate
 
 from civitai_dl.api import CivitaiAPI
 from civitai_dl.api import APIError
@@ -32,14 +33,12 @@ def browse() -> None:
 
 @browse.command("models")
 @click.option("--query", "-q", help="Search keywords")
-@click.option("--types", "-t", multiple=True,
-              help="Model type (Checkpoint, LORA, TextualInversion, etc., multiple selections allowed)")
+@click.option("--types", "-t", multiple=True, help="Model type (Checkpoint, LORA, TextualInversion, etc., multiple selections allowed)")
 @click.option("--tag", help="Model tag")
 @click.option("--sort", help="Sort order (Newest, Most Downloaded, Highest Rated, etc.)")
 @click.option("--limit", "-l", type=int, default=20, help="Result limit")
 @click.option("--nsfw", is_flag=True, help="Include NSFW content")
-@click.option("--format", "-f", "output_format", type=click.Choice(["table", "json"]),
-              default="table", help="Output format")
+@click.option("--format", "-f", "output_format", type=click.Choice(["table", "json"]), default="table", help="Output format")
 @click.option("--creator", "-c", help="Creator username")
 @click.option("--base-model", "-b", help="Base model")
 @click.option("--filter", "filter_json", help="Advanced filter conditions (JSON format)")
@@ -294,47 +293,55 @@ def browse_history(limit: int, clear: bool) -> None:
 
     click.echo("Recent filter history:")
     for i, record in enumerate(history[:limit]):
-        click.echo(f"{i + 1}. [{record['timestamp']}]\n   {json.dumps(record['condition'], indent=2)}")
+        click.echo(f"{i+1}. [{record['timestamp']}]\n   {json.dumps(record['condition'], indent=2)}")
         if i < len(history) - 1:
             click.echo("")
 
 
-def display_search_results(models: List[Dict[str, Any]], format_type: str) -> None:
-    """Display search results in specified format
+def display_search_results(models: List[Dict[str, Any]], format_type: str, output_file: Optional[str] = None) -> None:
+    """Display search results in the specified format.
 
     Args:
         models: List of model data
         format_type: Output format (table/json)
+        output_file: Output file path for saving results
     """
     if format_type == "json":
-        click.echo(json.dumps(models, indent=2, ensure_ascii=False))
-    else:
-        # Display as table
-        if not models:
-            click.echo("No results found")
-            return
+        result = json.dumps(models, indent=2)
 
-        click.echo("-" * 110)
-        click.echo(
-            "{:<10} {:<40} {:<15} {:<20} {:<10} {:<5}".format(
-                "ID", "Name", "Type", "Creator", "Downloads", "Rating"
-            )
-        )
-        click.echo("-" * 110)
+        if output_file:
+            with open(output_file, 'w', encoding='utf-8') as f:
+                f.write(result)
+            click.echo(f"Results saved to {output_file}")
+        else:
+            click.echo(result)
+    else:  # table
+        # Extract table data
+        table_data = []
         for model in models:
-            model_id = model.get("id", "N/A")
-            model_name = model.get("name", "N/A")[:40]  # Truncate to fit column width
-            model_type_str = model.get("type", "N/A")
-            creator = model.get("creator", {}).get("username", "N/A")
-            downloads = model.get("stats", {}).get("downloadCount", 0)
-            rating = model.get("stats", {}).get("rating", 0)
-            click.echo(
-                f"{model_id:<10} {model_name:<40} {model_type_str:<15} {creator:<20} {downloads:<10} {rating:<5.1f}"
-            )
-        click.echo("-" * 110)
+            row = [
+                model.get("id", ""),
+                model.get("name", ""),
+                model.get("type", ""),
+                model.get("creator", {}).get("username", ""),
+                model.get("stats", {}).get("downloadCount", 0),
+                model.get("stats", {}).get("rating", 0),
+            ]
+            table_data.append(row)
+
+        # Generate table
+        headers = ["ID", "Name", "Type", "Creator", "Downloads", "Rating"]
+        table = tabulate(table_data, headers=headers, tablefmt="grid")
+
+        if output_file:
+            with open(output_file, 'w', encoding='utf-8') as f:
+                f.write(table)
+            click.echo(f"Results saved to {output_file}")
+        else:
+            click.echo(table)
 
 
-def display_model_results(results: Dict[str, Any], format_type: str) -> None:
+def display_model_results(results: Dict[str, Any], format_type: str, output_file: Optional[str] = None) -> None:
     """Process and display model search results
 
     Args:

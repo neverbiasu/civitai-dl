@@ -47,7 +47,7 @@ def get_download_location(model_info: Dict[str, Any], version_info: Dict[str, An
         if recent_dirs:
             print("Recent download directories:")
             for i, directory in enumerate(recent_dirs):
-                print(f"{i + 1}. {directory}")
+                print(f"{i+1}. {directory}")
 
         # Ask user for directory
         while True:
