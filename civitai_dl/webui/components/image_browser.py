@@ -35,7 +35,7 @@ class ImageDownloader:
         self,
         model_id: int,
         version_id: Optional[int] = None,
-        nsfw_filter: str = "排除NSFW",
+        nsfw_filter: str = "Exclude NSFW",
         gallery: bool = False,
         limit: int = 10
     ) -> List[str]:
@@ -44,7 +44,7 @@ class ImageDownloader:
         Args:
             model_id: Model ID to search for
             version_id: Optional specific version ID
-            nsfw_filter: NSFW filtering option ("排除NSFW", "包含NSFW", "仅NSFW")
+            nsfw_filter: NSFW filtering option ("Exclude NSFW", "Include NSFW", "NSFW Only")
             gallery: Whether to include community gallery images
             limit: Maximum number of images to return
 
@@ -59,8 +59,8 @@ class ImageDownloader:
 
         try:
             # Convert NSFW filter option
-            include_nsfw = nsfw_filter in ["包含NSFW", "仅NSFW"]
-            only_nsfw = nsfw_filter == "仅NSFW"
+            include_nsfw = nsfw_filter in ["Include NSFW", "NSFW Only", "包含NSFW", "仅NSFW"]
+            only_nsfw = nsfw_filter in ["NSFW Only", "仅NSFW"]
 
             # First get version-specific images if a version is specified
             if version_id:
@@ -132,7 +132,7 @@ class ImageDownloader:
         self,
         model_id: int,
         version_id: Optional[int] = None,
-        nsfw_filter: str = "排除NSFW",
+        nsfw_filter: str = "Exclude NSFW",
         gallery: bool = False,
         limit: int = 10,
         output_dir: Optional[str] = None

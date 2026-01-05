@@ -14,7 +14,7 @@ from civitai_dl.webui.components.filter_builder import FilterBuilder
 from civitai_dl.webui.components.image_browser import ImageDownloader
 from civitai_dl.webui.callbacks import setup_callbacks
 
-# 设置日志记录器
+# Configure logger
 logger = get_logger(__name__)
 
 
@@ -59,45 +59,45 @@ def create_app() -> gr.Blocks:
         # Main content area with tabs
         with gr.Tabs() as tabs:
             # ===== Download Model Tab =====
-            with gr.Tab("下载模型"):
+            with gr.Tab("Download Model"):
                 with gr.Row():
                     with gr.Column(scale=1):
-                        model_id = gr.Number(label="模型ID", precision=0, minimum=1)
+                        model_id = gr.Number(label="Model ID", precision=0, minimum=1)
                         version_id = gr.Number(
-                            label="版本ID (可选)", precision=0, minimum=1
+                            label="Version ID (Optional)", precision=0, minimum=1
                         )
                         output_dir = gr.Textbox(
-                            label="输出目录",
+                            label="Output Directory",
                             value=config.get(
                                 "output_dir", os.path.join(os.getcwd(), "downloads")
                             ),
                         )
-                        with_images = gr.Checkbox(label="同时下载示例图像", value=True)
+                        with_images = gr.Checkbox(label="Download Sample Images", value=True)
                         image_limit = gr.Slider(
                             minimum=0,
                             maximum=20,
                             step=1,
                             value=5,
-                            label="图像下载数量 (0表示不限制)",
+                            label="Image Limit (0 for no limit)",
                         )
-                        download_btn = gr.Button("下载", variant="primary")
+                        download_btn = gr.Button("Download", variant="primary")
 
                     with gr.Column(scale=1):
-                        status = gr.Textbox(label="状态", interactive=False)
+                        status = gr.Textbox(label="Status", interactive=False)
                         progress = gr.Slider(
                             minimum=0,
                             maximum=100,
                             value=0,
                             step=0.1,
-                            label="下载进度",
+                            label="Download Progress",
                             interactive=False,
                         )
 
             # ===== Model Search Tab =====
-            with gr.Tab("模型搜索"):
+            with gr.Tab("Model Search"):
                 with gr.Row():
                     with gr.Column(scale=1):
-                        search_query = gr.Textbox(label="搜索关键词")
+                        search_query = gr.Textbox(label="Keywords")
                         model_types = gr.Dropdown(
                             choices=[
                                 "Checkpoint",
@@ -108,7 +108,7 @@ def create_app() -> gr.Blocks:
                                 "Controlnet",
                                 "Poses",
                             ],
-                            label="模型类型",
+                            label="Model Type",
                             multiselect=True,
                         )
                         sort_options = gr.Dropdown(
@@ -117,28 +117,28 @@ def create_app() -> gr.Blocks:
                                 "Most Downloaded",
                                 "Newest",
                             ],
-                            label="排序方式",
+                            label="Sort By",
                             value="Highest Rated",
                         )
-                        nsfw = gr.Checkbox(label="包含NSFW内容", value=False)
-                        search_btn = gr.Button("搜索")
+                        nsfw = gr.Checkbox(label="Include NSFW", value=False)
+                        search_btn = gr.Button("Search")
 
                     with gr.Column(scale=2):
                         results = gr.Dataframe(
-                            headers=["ID", "名称", "类型", "创作者", "下载量", "评分"],
-                            label="搜索结果",
+                            headers=["ID", "Name", "Type", "Creator", "Downloads", "Rating"],
+                            label="Search Results",
                             interactive=False,
                         )
 
                 # Search results action area
                 with gr.Row():
-                    download_selected_btn = gr.Button("下载选中模型", interactive=False)
-                    refresh_btn = gr.Button("刷新", interactive=True)
+                    download_selected_btn = gr.Button("Download Selected", interactive=False)
+                    refresh_btn = gr.Button("Refresh", interactive=True)
 
                 # Help text
                 gr.Markdown(
                     """
-                > **注意**: 模型搜索功能正在开发中，目前展示的是示例数据。完整功能将在后续版本中提供。
+                > **Note**: The model search function is under development. Currently showing sample data. Full functionality will be available in future versions.
                 """
                 )
 
@@ -170,121 +170,121 @@ def create_app() -> gr.Blocks:
                 )
 
             # ===== Image Download Tab =====
-            with gr.Tab("图像下载"):
+            with gr.Tab("Image Download"):
                 with gr.Row():
                     with gr.Column(scale=1):
-                        image_model_id = gr.Number(label="模型ID", precision=0, minimum=1)
+                        image_model_id = gr.Number(label="Model ID", precision=0, minimum=1)
                         image_version_id = gr.Number(
-                            label="版本ID (可选)", precision=0, minimum=1
+                            label="Version ID (Optional)", precision=0, minimum=1
                         )
                         nsfw_filter = gr.Radio(
-                            choices=["排除NSFW", "包含NSFW", "仅NSFW"],
-                            label="NSFW过滤",
-                            value="排除NSFW",
+                            choices=["Exclude NSFW", "Include NSFW", "NSFW Only"],
+                            label="NSFW Filter",
+                            value="Exclude NSFW",
                         )
-                        gallery_option = gr.Checkbox(label="社区画廊图像", value=False)
+                        gallery_option = gr.Checkbox(label="Community Gallery", value=False)
                         image_limit_slider = gr.Slider(
-                            minimum=5, maximum=50, step=5, value=10, label="最大图像数量"
+                            minimum=5, maximum=50, step=5, value=10, label="Max Images"
                         )
-                        search_images_btn = gr.Button("获取图像")
+                        search_images_btn = gr.Button("Get Images")
 
                     with gr.Column(scale=2):
                         image_gallery = gr.Gallery(
-                            label="图像预览", show_label=True, columns=3, rows=3, height=600
+                            label="Image Preview", show_label=True, columns=3, rows=3, height=600
                         )
 
                 # Image details and actions
                 with gr.Row():
-                    download_images_btn = gr.Button("下载所有图像")
-                    image_metadata = gr.JSON(label="图像元数据")
+                    download_images_btn = gr.Button("Download All Images")
+                    image_metadata = gr.JSON(label="Image Metadata")
 
             # ===== Settings Tab =====
-            with gr.Tab("设置"):
-                with gr.Accordion("基本设置", open=True):
+            with gr.Tab("Settings"):
+                with gr.Accordion("Basic Settings", open=True):
                     api_key = gr.Textbox(
-                        label="Civitai API密钥",
+                        label="Civitai API Key",
                         value=config.get("api_key", ""),
                         type="password",
                     )
                     proxy = gr.Textbox(
-                        label="代理设置 (e.g. http://127.0.0.1:7890)",
+                        label="Proxy (e.g. http://127.0.0.1:7890)",
                         value=config.get("proxy", ""),
                     )
                     theme = gr.Radio(
-                        choices=["亮色", "暗色"],
-                        label="界面主题",
-                        value="亮色" if config.get("theme") == "light" else "暗色",
+                        choices=["Light", "Dark"],
+                        label="Theme",
+                        value="Light" if config.get("theme") == "light" else "Dark",
                     )
 
-                with gr.Accordion("下载设置"):
+                with gr.Accordion("Download Settings"):
                     default_output = gr.Textbox(
-                        label="默认下载路径", value=config.get("output_dir", "./downloads")
+                        label="Default Download Path", value=config.get("output_dir", "./downloads")
                     )
                     concurrent = gr.Slider(
                         minimum=1,
                         maximum=10,
                         step=1,
                         value=config.get("concurrent_downloads", 3),
-                        label="并行下载任务数",
+                        label="Concurrent Downloads",
                     )
                     chunk_size = gr.Slider(
                         minimum=1024,
                         maximum=1024 * 32,
                         step=1024,
                         value=config.get("chunk_size", 8192),
-                        label="下载分块大小(bytes)",
+                        label="Chunk Size (bytes)",
                     )
 
-                with gr.Accordion("路径设置"):
+                with gr.Accordion("Path Settings"):
                     model_template = gr.Textbox(
-                        label="模型路径模板",
+                        label="Model Path Template",
                         value=config.get("path_template", "{type}/{creator}/{name}"),
                     )
                     image_template = gr.Textbox(
-                        label="图像路径模板",
+                        label="Image Path Template",
                         value=config.get(
                             "image_path_template", "images/{model_id}/{image_id}"
                         ),
                     )
                     gr.Markdown(
                         """
-                    **可用的模板变量:**
-                    - 模型: `{type}`, `{name}`, `{id}`, `{creator}`, `{version}`, `{base_model}`
-                    - 图像: `{model_id}`, `{image_id}`, `{hash}`, `{width}`, `{height}`, `{nsfw}`
+                    **Available Variables:**
+                    - Model: `{type}`, `{name}`, `{id}`, `{creator}`, `{version}`, `{base_model}`
+                    - Image: `{model_id}`, `{image_id}`, `{hash}`, `{width}`, `{height}`, `{nsfw}`
                     """
                     )
 
-                with gr.Accordion("高级设置"):
+                with gr.Accordion("Advanced Settings"):
                     timeout = gr.Slider(
                         minimum=5,
                         maximum=120,
                         step=5,
                         value=config.get("timeout", 30),
-                        label="请求超时(秒)",
+                        label="Request Timeout (s)",
                     )
                     max_retries = gr.Slider(
                         minimum=0,
                         maximum=10,
                         step=1,
                         value=config.get("max_retries", 3),
-                        label="最大重试次数",
+                        label="Max Retries",
                     )
                     verify_ssl = gr.Checkbox(
-                        label="验证SSL证书", value=config.get("verify_ssl", True)
+                        label="Verify SSL", value=config.get("verify_ssl", True)
                     )
 
                 with gr.Row():
-                    save_settings_btn = gr.Button("保存设置", variant="primary")
-                    gr.Button("导出设置")
-                    gr.Button("导入设置")
-                    settings_status = gr.Textbox(label="设置状态", interactive=False)
+                    save_settings_btn = gr.Button("Save Settings", variant="primary")
+                    gr.Button("Export Settings")
+                    gr.Button("Import Settings")
+                    settings_status = gr.Textbox(label="Status", interactive=False)
 
         # Footer information
         with gr.Row():
             gr.Markdown(
                 "Civitai Downloader | "
-                "[项目地址](https://github.com/neverbiasu/civitai-dl) | "
-                "[问题反馈](https://github.com/neverbiasu/civitai-dl/issues)"
+                "[Project URL](https://github.com/neverbiasu/civitai-dl) | "
+                "[Issues](https://github.com/neverbiasu/civitai-dl/issues)"
             )
 
         # Connect event handlers
