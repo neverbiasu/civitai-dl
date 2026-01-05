@@ -153,7 +153,7 @@ class FilterParser:
         if not query.strip():
             return {}
 
-        parts = re.findall(r'([a-zA-Z0-9_.]+)(:([<>]?=?|~|!)?([\w.-]+|\".+?\")|\s+|$)', query)
+        parts = re.findall(r'([a-zA-Z0-9_.]+)(:([<>]?=?|~|!)?([\w.-]+|\".+?\"))', query)
         conditions = []
 
         for field, _, op_str, value in parts:

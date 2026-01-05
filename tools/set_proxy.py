@@ -103,7 +103,7 @@ def test_proxy(proxy=None):
 
         # 使用代理连接测试网站
         print("测试连接到 api.ipify.org...")
-        response = requests.get("https://api.ipify.org", proxies=proxies, timeout=10, verify=False)
+        response = requests.get("https://api.ipify.org", proxies=proxies, timeout=10, verify=True)
         print(f"代理测试成功! 通过代理的公共IP地址: {response.text}")
 
         # 测试连接Civitai
@@ -112,7 +112,7 @@ def test_proxy(proxy=None):
             "https://civitai.com/api/v1/models?limit=1",
             proxies=proxies,
             timeout=15,
-            verify=False,
+            verify=True,
         )
         if civitai_response.status_code == 200:
             print(f"成功连接Civitai API! 状态码: {civitai_response.status_code}")
@@ -138,7 +138,7 @@ def test_proxy(proxy=None):
                     "https://api.ipify.org",
                     proxies=socks_proxies,
                     timeout=10,
-                    verify=False,
+                    verify=True,
                 )
                 print(f"SOCKS5代理测试成功! 通过代理的公共IP地址: {response.text}")
                 return socks_proxy

@@ -108,10 +108,7 @@ class ConfigManager:
             return True
 
         except OSError as e:
-            logger.error(f"Failed to create directory for config: {str(e)}")
-            return False
-        except IOError as e:
-            logger.error(f"Failed to write config file: {str(e)}")
+            logger.error(f"Failed to save configuration: {str(e)}")
             return False
         except Exception as e:
             logger.error(f"Failed to save configuration: {str(e)}")
