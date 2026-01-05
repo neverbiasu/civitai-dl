@@ -299,7 +299,42 @@ def browse_history(limit: int, clear: bool) -> None:
             click.echo("")
 
 
-def display_model_results(results: Dict[str, Any], format_type: str, output_file: Optional[str] = None) -> None:
+def display_search_results(models: List[Dict[str, Any]], format_type: str) -> None:
+    """Display search results in specified format
+    
+    Args:
+        models: List of model data
+        format_type: Output format (table/json)
+    """
+    if format_type == "json":
+        click.echo(json.dumps(models, indent=2, ensure_ascii=False))
+    else:
+        # Display as table
+        if not models:
+            click.echo("No results found")
+            return
+            
+        click.echo("-" * 110)
+        click.echo(
+            "{:<10} {:<40} {:<15} {:<20} {:<10} {:<5}".format(
+                "ID", "Name", "Type", "Creator", "Downloads", "Rating"
+            )
+        )
+        click.echo("-" * 110)
+        for model in models:
+            model_id = model.get("id", "N/A")
+            model_name = model.get("name", "N/A")[:40]  # Truncate to fit column width
+            model_type_str = model.get("type", "N/A")
+            creator = model.get("creator", {}).get("username", "N/A")
+            downloads = model.get("stats", {}).get("downloadCount", 0)
+            rating = model.get("stats", {}).get("rating", 0)
+            click.echo(
+                f"{model_id:<10} {model_name:<40} {model_type_str:<15} {creator:<20} {downloads:<10} {rating:<5.1f}"
+            )
+        click.echo("-" * 110)
+
+
+def display_model_results(results: Dict[str, Any], format_type: str) -> None:
     """Process and display model search results
 
     Args:
