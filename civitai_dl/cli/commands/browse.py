@@ -5,7 +5,6 @@ Provides commands for browsing models, filter templates, and search history.
 
 import sys
 import json
-import difflib
 from typing import Dict, List, Any, Optional
 
 import click
@@ -297,6 +296,49 @@ def browse_history(limit: int, clear: bool) -> None:
         click.echo(f"{i+1}. [{record['timestamp']}]\n   {json.dumps(record['condition'], indent=2)}")
         if i < len(history) - 1:
             click.echo("")
+
+
+def display_search_results(models: List[Dict[str, Any]], format_type: str, output_file: Optional[str] = None) -> None:
+    """Display search results in the specified format.
+
+    Args:
+        models: List of model data
+        format_type: Output format (table/json)
+        output_file: Output file path for saving results
+    """
+    if format_type == "json":
+        result = json.dumps(models, indent=2)
+
+        if output_file:
+            with open(output_file, 'w', encoding='utf-8') as f:
+                f.write(result)
+            click.echo(f"Results saved to {output_file}")
+        else:
+            click.echo(result)
+    else:  # table
+        # Extract table data
+        table_data = []
+        for model in models:
+            row = [
+                model.get("id", ""),
+                model.get("name", ""),
+                model.get("type", ""),
+                model.get("creator", {}).get("username", ""),
+                model.get("stats", {}).get("downloadCount", 0),
+                model.get("stats", {}).get("rating", 0),
+            ]
+            table_data.append(row)
+
+        # Generate table
+        headers = ["ID", "Name", "Type", "Creator", "Downloads", "Rating"]
+        table = tabulate(table_data, headers=headers, tablefmt="grid")
+
+        if output_file:
+            with open(output_file, 'w', encoding='utf-8') as f:
+                f.write(table)
+            click.echo(f"Results saved to {output_file}")
+        else:
+            click.echo(table)
 
 
 def display_model_results(results: Dict[str, Any], format_type: str, output_file: Optional[str] = None) -> None:
