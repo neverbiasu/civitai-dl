@@ -8,7 +8,6 @@ import json
 from typing import Dict, List, Any, Optional
 
 import click
-from tabulate import tabulate
 
 from civitai_dl.api import CivitaiAPI
 from civitai_dl.api import APIError
@@ -302,7 +301,7 @@ def browse_history(limit: int, clear: bool) -> None:
 
 def display_search_results(models: List[Dict[str, Any]], format_type: str) -> None:
     """Display search results in specified format
-    
+
     Args:
         models: List of model data
         format_type: Output format (table/json)
@@ -314,7 +313,7 @@ def display_search_results(models: List[Dict[str, Any]], format_type: str) -> No
         if not models:
             click.echo("No results found")
             return
-            
+
         click.echo("-" * 110)
         click.echo(
             "{:<10} {:<40} {:<15} {:<20} {:<10} {:<5}".format(
