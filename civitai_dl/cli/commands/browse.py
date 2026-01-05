@@ -5,7 +5,6 @@ Provides commands for browsing models, filter templates, and search history.
 
 import sys
 import json
-import difflib
 from typing import Dict, List, Any, Optional
 
 import click
