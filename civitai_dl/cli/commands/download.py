@@ -658,13 +658,13 @@ def download_images(
                 # 获取图像URL
                 image_url = image.get("url")
                 if not image_url:
-                    logger.warning(f"图像 {i+1} 没有URL，跳过")
+                    logger.warning(f"图像 {i + 1} 没有URL，跳过")
                     bar.update(1)
                     continue
 
                 # 构建文件名 (简化文件名，避免过长)
-                image_id = image.get("id", f"img_{i+1}")
-                filename = f"{model_id}_{i+1}_{image_id}.jpg"
+                image_id = image.get("id", f"img_{i + 1}")
+                filename = f"{model_id}_{i + 1}_{image_id}.jpg"
 
                 # 构建完整的图像路径
                 image_path = os.path.join(model_images_dir, filename)
@@ -770,8 +770,8 @@ def format_size(size_bytes):
     if size_bytes < 1024:
         return f"{size_bytes} B"
     elif size_bytes < 1024 * 1024:
-        return f"{size_bytes/1024:.1f} KB"
+        return f"{size_bytes / 1024:.1f} KB"
     elif size_bytes < 1024 * 1024 * 1024:
-        return f"{size_bytes/(1024*1024):.1f} MB"
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
     else:
-        return f"{size_bytes/(1024*1024*1024):.1f} GB"
+        return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"

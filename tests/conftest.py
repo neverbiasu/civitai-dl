@@ -139,7 +139,8 @@ def api_client():
     proxy = os.environ.get("CIVITAI_PROXY") or os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
 
     if api_key:
-        print(f"API Client: Using API Key: {api_key[:4]}{'*' * (len(api_key) - 8)}{api_key[-4:] if len(api_key) > 8 else ''}")
+        print(f"API Client: Using API Key: {api_key[:4]}{'*' * (len(api_key) - 8)}"
+              f"{api_key[-4:] if len(api_key) > 8 else ''}")
 
     if proxy:
         print(f"API Client: Using Proxy: {proxy}")
@@ -170,7 +171,8 @@ def api_client():
                 except Exception as e:
                     print(f"Alternative proxy connection test also failed: {str(e)}")
     else:
-        print("Warning: Proxy not set, may not be able to access Civitai API. Please set CIVITAI_PROXY, HTTP_PROXY or HTTPS_PROXY environment variables.")
+        print("Warning: Proxy not set, may not be able to access Civitai API. "
+              "Please set CIVITAI_PROXY, HTTP_PROXY or HTTPS_PROXY environment variables.")
 
     # Create API client instance
     client = CivitaiAPI(

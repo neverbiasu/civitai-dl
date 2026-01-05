@@ -33,12 +33,14 @@ def browse() -> None:
 
 @browse.command("models")
 @click.option("--query", "-q", help="Search keywords")
-@click.option("--types", "-t", multiple=True, help="Model type (Checkpoint, LORA, TextualInversion, etc., multiple selections allowed)")
+@click.option("--types", "-t", multiple=True,
+              help="Model type (Checkpoint, LORA, TextualInversion, etc., multiple selections allowed)")
 @click.option("--tag", help="Model tag")
 @click.option("--sort", help="Sort order (Newest, Most Downloaded, Highest Rated, etc.)")
 @click.option("--limit", "-l", type=int, default=20, help="Result limit")
 @click.option("--nsfw", is_flag=True, help="Include NSFW content")
-@click.option("--format", "-f", "output_format", type=click.Choice(["table", "json"]), default="table", help="Output format")
+@click.option("--format", "-f", "output_format", type=click.Choice(["table", "json"]),
+              default="table", help="Output format")
 @click.option("--creator", "-c", help="Creator username")
 @click.option("--base-model", "-b", help="Base model")
 @click.option("--filter", "filter_json", help="Advanced filter conditions (JSON format)")
@@ -293,7 +295,7 @@ def browse_history(limit: int, clear: bool) -> None:
 
     click.echo("Recent filter history:")
     for i, record in enumerate(history[:limit]):
-        click.echo(f"{i+1}. [{record['timestamp']}]\n   {json.dumps(record['condition'], indent=2)}")
+        click.echo(f"{i + 1}. [{record['timestamp']}]\n   {json.dumps(record['condition'], indent=2)}")
         if i < len(history) - 1:
             click.echo("")
 
