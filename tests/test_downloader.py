@@ -156,7 +156,7 @@ class TestDownloadEngine:
         )
 
         # Wait for download to complete, may take a long time
-        print("Downloading, please wait patiently...")
+        print("Downloading, please be patient...")
         while task.status == "running":
             if task.total_size and task.downloaded_size:
                 progress = (task.downloaded_size / task.total_size) * 100
